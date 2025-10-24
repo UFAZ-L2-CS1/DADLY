@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 import uvicorn
 from datetime import datetime
-import pytz
 import logging
+
+
+from api.health import router as health_router
 
 # Configure logging
 logging.basicConfig(
@@ -14,15 +16,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-@app.get("/health_check")
-async def health_check():
-    baku_tz = pytz.timezone("Asia/Baku")
-    baku_time = datetime.now(tz=baku_tz).strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"Health check called at {baku_time}")
-    return {
-        "status": "OK",
-        "time_baku": baku_time
-    }
+@app.include_router(health_router)
+
 
 
 if __name__ == "__main__":
