@@ -1,23 +1,15 @@
 from fastapi import APIRouter
-import pytz
 from datetime import datetime
-import logging
 
-import logging
+from config import Config, get_logger
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router= APIRouter()
 
 @router.get("/health", tags=["Health"])
 async def health_check():
-    baku_tz = pytz.timezone("Asia/Baku")
+    baku_tz = Config.get_timezone()
     baku_time = datetime.now(tz=baku_tz).strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Health check called at {baku_time}")
     return {

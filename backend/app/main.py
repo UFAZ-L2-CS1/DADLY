@@ -3,23 +3,16 @@ import uvicorn
 from datetime import datetime
 import logging
 
-
+from config import setup_logging, Config
 from api.health import router as health_router
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-logger = logging.getLogger(__name__)
+# Initialize logging
+setup_logging()
 
 app = FastAPI()
 
-@app.include_router(health_router)
-
-
-
-if __name__ == "__main__":
-    logger.info("Starting FastAPI app...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+app.include_router(
+    health_router,
+    prefix=Config.API_V1_PREFIX,
+    tags=["health"]
+)

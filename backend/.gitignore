@@ -1,0 +1,7 @@
+.github
+.github/copilot-instructions.md
+
+__pycache__
+
+Virtual environment
+.venv/
