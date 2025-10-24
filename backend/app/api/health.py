@@ -3,8 +3,6 @@ import pytz
 from datetime import datetime
 import logging
 
-import logging
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
