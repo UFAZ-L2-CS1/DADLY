@@ -10,7 +10,6 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
-    Float,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -78,4 +77,3 @@ class PantryItem(Base):
 
     # Relationships
     user = relationship("User", back_populates="pantry_items")
-    
