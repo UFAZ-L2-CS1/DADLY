@@ -25,7 +25,14 @@ class Config:
     # API configuration
     API_V1_PREFIX = "/api/v1"
 
+    # Database configuration
     DATABASE_URL = os.getenv("DATABASE_URL")
+
+    # JWT Authentication configuration
+    SECRET_KEY = os.getenv("SECRET_KEY", "fads3124123412fssfdnfodi42fioa0423nosdao9nf3nf39p1bpsfda013b1")
+    ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
     @classmethod
     def get_timezone(cls):
