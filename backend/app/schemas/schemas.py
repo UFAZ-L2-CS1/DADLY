@@ -6,7 +6,7 @@ Designed for 1-month university project timeline
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, validator
 
 
 class DietaryType(str, Enum):
@@ -29,7 +29,7 @@ class DifficultyLevel(str, Enum):
 
 # User Models
 class UserBase(BaseModel):
-    email: str
+    email: EmailStr
     name: str
     dietary_type: DietaryType = DietaryType.NONE
     allergies: Optional[str] = None
@@ -37,7 +37,13 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-
+    @validator("password")
+    def password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
 
 class UserResponse(UserBase):
     id: int
@@ -46,6 +52,21 @@ class UserResponse(UserBase):
     class Config:
         from_attributes = True
 
+
+# Token Models
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenWithRefresh(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 # Recipe Models
 class RecipeResponse(BaseModel):
