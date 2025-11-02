@@ -3,5 +3,16 @@
 
 __pycache__
 
-Virtual environment
+# Virtual environment
 .venv/
+
+# Docker
+docker-compose.yml
+Dockerfile
+
+# Requirements
+REQUIREMENTS.md
+
+
+# Script files
+fetch_spoonacular_recipes.py
