@@ -29,8 +29,10 @@ class Config:
     DATABASE_URL = os.getenv("DATABASE_URL")
 
     # JWT Authentication configuration
-    SECRET_KEY = os.getenv("SECRET_KEY", "fads3124123412fssfdnfodi42fioa0423nosdao9nf3nf39p1bpsfda013b1")
-    ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    if not SECRET_KEY:
+        raise RuntimeError("SECRET_KEY environment variable must be set and non-empty.")
+    ALGORITHM = os.getenv("JWT_ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
     REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 

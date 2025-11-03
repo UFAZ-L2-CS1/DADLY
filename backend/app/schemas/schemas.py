@@ -6,7 +6,7 @@ Designed for 1-month university project timeline
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, field_validator
 
 
 class DietaryType(str, Enum):
@@ -37,8 +37,10 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    @validator("password")
-    def password_strength(cls, v):
+
+    @field_validator("password")
+    @staticmethod
+    def password_strength(v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
         if not any(c.isdigit() for c in v):

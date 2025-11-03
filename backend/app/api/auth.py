@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from fastapi import APIRouter, HTTPException, Depends, status
 import bcrypt
@@ -104,7 +104,7 @@ def authenticate_user(email: str, password: str, db: db_dependency):
 def create_access_token(email: str, user_id: int, expires_delta: timedelta):
     """Create JWT access token"""
     encode = {"sub": email, "id": user_id, "type": "access"}
-    expires = datetime.utcnow() + expires_delta
+    expires = datetime.now(timezone.utc) + expires_delta
     encode.update({"exp": expires})
     return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -112,7 +112,7 @@ def create_access_token(email: str, user_id: int, expires_delta: timedelta):
 def create_refresh_token(email: str, user_id: int, expires_delta: timedelta):
     """Create JWT refresh token"""
     encode = {"sub": email, "id": user_id, "type": "refresh"}
-    expires = datetime.utcnow() + expires_delta
+    expires = datetime.now(timezone.utc) + expires_delta
     encode.update({"exp": expires})
     return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
 
