@@ -51,4 +51,4 @@ app.include_router(recipes_router, prefix=f"{Config.API_V1_PREFIX}/recipes", tag
 app.include_router(pantry_router, prefix=f"{Config.API_V1_PREFIX}/pantry", tags=["Pantry"])
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000)

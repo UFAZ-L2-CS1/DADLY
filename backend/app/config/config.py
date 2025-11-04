@@ -25,13 +25,10 @@ class Config:
     # API configuration
     API_V1_PREFIX = "/api/v1"
 
-    # Database configuration
-    DATABASE_URL = os.getenv("DATABASE_URL")
-
     # JWT Authentication configuration
-    SECRET_KEY = os.getenv("SECRET_KEY")
+    SECRET_KEY = os.getenv("JWT_SECRET_KEY")
     if not SECRET_KEY:
-        raise RuntimeError("SECRET_KEY environment variable must be set and non-empty.")
+        raise RuntimeError("JWT_SECRET_KEY environment variable must be set and non-empty.")
     ALGORITHM = os.getenv("JWT_ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
     REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
