@@ -5,7 +5,19 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.17.1",
+    "bcrypt>=4.0.0",
+    "cryptography>=43.0.0",
     "fastapi>=0.119.1",
+    "git-filter-repo>=2.47.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pydantic[email]>=2.12.3",
+    "pymysql>=1.1.2",
+    "python-dotenv>=1.2.1",
+    "python-jose[cryptography]>=3.5.0",
+    "python-multipart>=0.0.20",
     "pytz>=2025.2",
+    "requests>=2.32.5",
+    "sqlalchemy>=2.0.44",
     "uvicorn>=0.38.0",
 ]

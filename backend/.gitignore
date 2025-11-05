@@ -1,0 +1,20 @@
+.github
+.github/copilot-instructions.md
+
+__pycache__
+
+# Virtual environment
+.venv/
+
+# Docker files
+docker-compose.yml  
+
+# Requirements
+REQUIREMENTS.md
+
+
+# Script files
+fetch_spoonacular_recipes.py
+
+# Local environment variables
+.env
