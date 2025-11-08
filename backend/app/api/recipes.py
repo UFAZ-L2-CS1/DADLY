@@ -51,7 +51,6 @@ async def get_recipe_feed(
     Get recipe feed for swiping interface
     
     Returns recipes filtered by:
-    - User's dietary preferences
     - Excludes already liked recipes (permanent)
     - Excludes session-excluded recipes (temporary)
     - Prioritizes recipes matching user's pantry items if available
@@ -113,39 +112,45 @@ async def get_recipe_feed(
             # User has pantry items - match recipes by ingredients
             ingredient_names = [item.ingredient_name.lower() for item in pantry_items]
             
-            # Build OR conditions for LIKE matching with escaped wildcards
+            # Build SQL-based scoring using CASE expressions for each ingredient
+            # This moves scoring to database level for better performance (O(n) vs O(nmk))
+            match_cases = []
             ingredient_conditions = []
+            
             for ingredient in ingredient_names:
                 # Escape SQL LIKE wildcards (% and _) to prevent unintended matching
                 escaped_ingredient = ingredient.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
                 pattern = f'%{escaped_ingredient}%'
-                # Use escape parameter to tell database about our escape character
+                
+                # Build CASE expression: 1 if match, 0 otherwise
+                match_cases.append(
+                    func.case(
+                        (Recipe.ingredients.ilike(pattern, escape='\\'), 1),
+                        else_=0
+                    )
+                )
+                
+                # Also build OR condition for filtering
                 ingredient_conditions.append(Recipe.ingredients.ilike(pattern, escape='\\'))
             
-            # Apply ingredient matching and limit initial query to prevent loading too many recipes
+            # Apply ingredient matching filter
             if ingredient_conditions:
                 query = query.filter(or_(*ingredient_conditions))
             
-            # Fetch upper bound: enough recipes to score and select best matches, but not all
-            # FETCH_MULTIPLIER allows filtering out low-score matches after scoring
-            max_fetch = min(limit * FETCH_MULTIPLIER, MAX_FETCH_RECIPES)
-            recipes = query.limit(max_fetch).all()
+            # Add computed match_count column by summing all CASE expressions
+            match_count_expr = sum(match_cases)
+            query = query.add_columns(match_count_expr.label('match_count'))
             
-            # Score recipes by ingredient match count
-            scored_recipes = []
-            for recipe in recipes:
-                recipe_ingredients_lower = recipe.ingredients.lower()
-                match_count = sum(1 for ing in ingredient_names if ing in recipe_ingredients_lower)
-                scored_recipes.append((recipe, match_count))
+            # Order by match count (highest first) and limit
+            query = query.order_by(func.desc('match_count'))
+            query = query.limit(limit)
             
-            # Sort by match count (highest first)
-            scored_recipes.sort(key=lambda x: x[1], reverse=True)
-            
-            # Take top matches up to limit
-            recipes = [recipe for recipe, _ in scored_recipes[:limit]]
+            # Execute query - results are tuples of (Recipe, match_count)
+            results = query.all()
+            recipes = [result[0] for result in results]
         else:
             # No pantry items - return random recipes
-            recipes = query.order_by(func.random()).limit(limit).all()
+            recipes = query.order_by(func.rand()).limit(limit).all()
         
         # Convert to minimal response
         result = [create_minimal_recipe_response(recipe) for recipe in recipes]
@@ -168,69 +173,60 @@ async def like_recipe(
     Like a recipe (right swipe)
     
     Creates a permanent like record and increments recipe like_count.
+    Relies on database unique constraint to prevent duplicate likes.
     """
     try:
-        # Check if recipe exists
+        # Check if recipe exists first
         recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
         if not recipe:
             raise HTTPException(status_code=404, detail="Recipe not found")
         
-        # Check if already liked
-        existing = db.query(UserRecipeInteraction).filter(
-            UserRecipeInteraction.user_id == current_user.id,
-            UserRecipeInteraction.recipe_id == recipe_id,
-            UserRecipeInteraction.liked.is_(True)
-        ).first()
-        
-        if existing:
-            raise HTTPException(status_code=400, detail="Recipe already liked")
-        
-        # Create like interaction
+        # Create like interaction - rely on unique constraint to prevent duplicates
+        # This is more efficient than checking first (avoids race condition window)
         interaction = UserRecipeInteraction(
             user_id=current_user.id,
             recipe_id=recipe_id,
             liked=True
         )
         db.add(interaction)
+        db.flush()  # Flush to check for unique constraint violation
         
-        try:
-            db.flush()  # Flush to check for unique constraint violation
-            
-            # Atomically increment like count to prevent race conditions
-            db.execute(
-                update(Recipe)
-                .where(Recipe.id == recipe_id)
-                .values(like_count=Recipe.like_count + 1)
-            )
-            
-            db.commit()
-            
-            # Fetch updated like count
-            db.refresh(recipe)
-            
-            logger.info(f"User {current_user.id} liked recipe {recipe_id}")
-            return {
-                "message": "Recipe liked successfully",
-                "recipe_id": recipe_id,
-                "like_count": recipe.like_count
-            }
-        except IntegrityError as e:
-            db.rollback()
-            # Check if it's the specific unique constraint violation we expect
-            error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
-            
-            if 'uq_user_recipe' in error_msg.lower() or 'duplicate' in error_msg.lower():
-                # Unique constraint violation - duplicate like attempt (race condition)
-                logger.warning(f"Duplicate like attempt by user {current_user.id} for recipe {recipe_id}")
-                raise HTTPException(status_code=400, detail="Recipe already liked")
-            else:
-                # Other integrity error (foreign key, null constraint, etc.)
-                logger.error(f"Integrity error while liking recipe {recipe_id} by user {current_user.id}: {error_msg}")
-                raise HTTPException(status_code=500, detail="Database integrity error")
+        # Atomically increment like count to prevent race conditions
+        db.execute(
+            update(Recipe)
+            .where(Recipe.id == recipe_id)
+            .values(like_count=Recipe.like_count + 1)
+        )
         
+        db.commit()
+        
+        # Fetch updated like count
+        db.refresh(recipe)
+        
+        logger.info(f"User {current_user.id} liked recipe {recipe_id}")
+        return {
+            "message": "Recipe liked successfully",
+            "recipe_id": recipe_id,
+            "like_count": recipe.like_count
+        }
+        
+    except IntegrityError as e:
+        db.rollback()
+        # Check if it's the specific unique constraint violation we expect
+        error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
+        
+        if 'uq_user_recipe' in error_msg.lower() or 'duplicate' in error_msg.lower():
+            # Unique constraint violation - duplicate like attempt (race condition)
+            logger.warning(f"Duplicate like attempt by user {current_user.id} for recipe {recipe_id}")
+            raise HTTPException(status_code=400, detail="Recipe already liked")
+        else:
+            # Other integrity error (foreign key, null constraint, etc.)
+            logger.error(f"Integrity error while liking recipe {recipe_id} by user {current_user.id}: {error_msg}")
+            raise HTTPException(status_code=500, detail="Database integrity error")
     except HTTPException:
         raise
     except Exception as e:
+        # Catch any other database exceptions (connection issues, etc.) to ensure rollback
         logger.error(f"Error liking recipe {recipe_id}: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -264,11 +260,17 @@ async def get_liked_recipes(
         # Apply cursor if provided (fetch records older than cursor timestamp)
         if cursor:
             try:
+                # Use consistent timestamp format: YYYY-MM-DDTHH:MM:SS.ffffff
+                # This handles 'Z' suffix and various ISO formats more reliably
+                cursor = cursor.replace('Z', '+00:00')  # Handle UTC 'Z' notation
                 cursor_dt = datetime.fromisoformat(cursor)
                 query = query.filter(UserRecipeInteraction.created_at < cursor_dt)
-            except (ValueError, TypeError):
-                logger.warning(f"Invalid cursor format: {cursor}")
-                raise HTTPException(status_code=400, detail="Invalid cursor format. Use ISO timestamp.")
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid cursor format: {cursor}, error: {e}")
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Invalid cursor format. Expected ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS.ffffff)."
+                )
         
         # Order by created_at descending and limit
         interactions = query.order_by(
@@ -280,14 +282,15 @@ async def get_liked_recipes(
         if has_more:
             interactions = interactions[:limit]  # Remove the extra item
         
-        # Build response
+        # Build response with consistent timestamp format
         recipes = []
         next_cursor = None
         for interaction, recipe in interactions:
             recipe_data = create_minimal_recipe_response(recipe)
-            recipe_data["liked_at"] = interaction.created_at.isoformat()
-            recipes.append(recipe_data)
-            next_cursor = interaction.created_at.isoformat()  # Last item's timestamp
+            # Use consistent format for cursor (includes microseconds for precision)
+            timestamp = interaction.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f')
+            recipe_data["liked_at"] = timestamp
+            next_cursor = timestamp  # Last item's timestamp
         
         return {
             "recipes": recipes,
