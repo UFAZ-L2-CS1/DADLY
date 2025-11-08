@@ -7,6 +7,7 @@ import json
 from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy import func, or_, update
+from sqlalchemy.exc import IntegrityError
 
 from app.schemas.schemas import RecipeResponse
 from app.db.database import db_dependency
@@ -16,6 +17,12 @@ from app.api.auth import get_current_user
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+# Constants for feed optimization and security
+FETCH_MULTIPLIER = 10  # Fetch 10x the requested limit to allow scoring/sorting before final selection
+MAX_FETCH_RECIPES = 500  # Absolute cap to prevent memory exhaustion
+MAX_EXCLUDE_IDS = 100  # Maximum number of excluded recipe IDs to prevent abuse
+MAX_EXCLUDE_LENGTH = 1000  # Maximum length of exclude parameter string
 
 
 # Helper function to create minimal recipe response
@@ -55,17 +62,36 @@ async def get_recipe_feed(
         # Get liked recipe IDs (permanent exclusion)
         liked_recipe_ids = db.query(UserRecipeInteraction.recipe_id).filter(
             UserRecipeInteraction.user_id == current_user.id,
-            UserRecipeInteraction.liked == True
+            UserRecipeInteraction.liked.is_(True)
         ).all()
         liked_ids = [r[0] for r in liked_recipe_ids]
         
-        # Parse session-excluded IDs (temporary exclusion)
+        # Parse session-excluded IDs (temporary exclusion) with validation
         session_excluded_ids = []
         if exclude:
+            # Validate exclude parameter length to prevent DoS
+            if len(exclude) > MAX_EXCLUDE_LENGTH:
+                logger.warning(f"Exclude parameter too long ({len(exclude)} > {MAX_EXCLUDE_LENGTH} chars).")
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Exclude parameter too long (max {MAX_EXCLUDE_LENGTH} chars)."
+                )
+            
             try:
-                session_excluded_ids = [int(x.strip()) for x in exclude.split(',') if x.strip()]
+                exclude_items = [x.strip() for x in exclude.split(',') if x.strip()]
+                
+                # Validate number of excluded IDs to prevent abuse
+                if len(exclude_items) > MAX_EXCLUDE_IDS:
+                    logger.warning(f"Too many IDs in exclude parameter ({len(exclude_items)} > {MAX_EXCLUDE_IDS}).")
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Too many excluded IDs (max {MAX_EXCLUDE_IDS})."
+                    )
+                
+                session_excluded_ids = [int(x) for x in exclude_items]
             except ValueError:
-                logger.warning(f"Invalid exclude parameter: {exclude}. Skipping session_excluded_ids parsing.")
+                logger.warning(f"Invalid exclude parameter: {exclude}. Contains non-integer values.")
+                raise HTTPException(status_code=400, detail="Exclude parameter must contain valid integer IDs.")
         
         # Combine exclusions
         excluded_ids = list(set(liked_ids + session_excluded_ids))
@@ -96,8 +122,9 @@ async def get_recipe_feed(
             if ingredient_conditions:
                 query = query.filter(or_(*ingredient_conditions))
             
-            # Fetch reasonable upper bound of recipes before scoring (e.g., 10x the limit)
-            max_fetch = min(limit * 10, 500)  # Cap at 500 to prevent memory issues
+            # Fetch upper bound: enough recipes to score and select best matches, but not all
+            # FETCH_MULTIPLIER allows filtering out low-score matches after scoring
+            max_fetch = min(limit * FETCH_MULTIPLIER, MAX_FETCH_RECIPES)
             recipes = query.limit(max_fetch).all()
             
             # Score recipes by ingredient match count
@@ -148,7 +175,7 @@ async def like_recipe(
         existing = db.query(UserRecipeInteraction).filter(
             UserRecipeInteraction.user_id == current_user.id,
             UserRecipeInteraction.recipe_id == recipe_id,
-            UserRecipeInteraction.liked == True
+            UserRecipeInteraction.liked.is_(True)
         ).first()
         
         if existing:
@@ -161,26 +188,33 @@ async def like_recipe(
             liked=True
         )
         db.add(interaction)
-        db.flush()  # Flush to ensure interaction is created before updating counter
         
-        # Atomically increment like count to prevent race conditions
-        db.execute(
-            update(Recipe)
-            .where(Recipe.id == recipe_id)
-            .values(like_count=Recipe.like_count + 1)
-        )
-        
-        db.commit()
-        
-        # Fetch updated like count
-        db.refresh(recipe)
-        
-        logger.info(f"User {current_user.id} liked recipe {recipe_id}")
-        return {
-            "message": "Recipe liked successfully",
-            "recipe_id": recipe_id,
-            "like_count": recipe.like_count
-        }
+        try:
+            db.flush()  # Flush to check for unique constraint violation
+            
+            # Atomically increment like count to prevent race conditions
+            db.execute(
+                update(Recipe)
+                .where(Recipe.id == recipe_id)
+                .values(like_count=Recipe.like_count + 1)
+            )
+            
+            db.commit()
+            
+            # Fetch updated like count
+            db.refresh(recipe)
+            
+            logger.info(f"User {current_user.id} liked recipe {recipe_id}")
+            return {
+                "message": "Recipe liked successfully",
+                "recipe_id": recipe_id,
+                "like_count": recipe.like_count
+            }
+        except IntegrityError as e:
+            # Database-level unique constraint violation (race condition caught)
+            db.rollback()
+            logger.warning(f"Duplicate like attempt by user {current_user.id} for recipe {recipe_id}: {e}")
+            raise HTTPException(status_code=400, detail="Recipe already liked")
         
     except HTTPException:
         raise
@@ -194,51 +228,64 @@ async def like_recipe(
 async def get_liked_recipes(
     current_user: Annotated[User, Depends(get_current_user)],
     db: db_dependency,
-    page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    cursor: Optional[str] = Query(None, description="Cursor for pagination (ISO timestamp from previous response)"),
 ):
     """
-    Get user's liked recipes collection with pagination
+    Get user's liked recipes collection with cursor-based pagination
+    
+    Uses cursor-based pagination (via created_at timestamp) for better performance
+    with large datasets compared to offset-based pagination.
     
     Returns recipes with minimal data plus liked_at timestamp.
+    Pass the 'next_cursor' from the response to get the next page.
     """
     try:
-        # Calculate offset
-        skip = (page - 1) * limit
-        
-        # Get total count
-        total = db.query(UserRecipeInteraction).filter(
-            UserRecipeInteraction.user_id == current_user.id,
-            UserRecipeInteraction.liked == True
-        ).count()
-        
-        # Get liked interactions with recipes
-        interactions = db.query(UserRecipeInteraction, Recipe).join(
+        # Base query
+        query = db.query(UserRecipeInteraction, Recipe).join(
             Recipe, UserRecipeInteraction.recipe_id == Recipe.id
         ).filter(
             UserRecipeInteraction.user_id == current_user.id,
-            UserRecipeInteraction.liked == True
-        ).order_by(
+            UserRecipeInteraction.liked.is_(True)
+        )
+        
+        # Apply cursor if provided (fetch records older than cursor timestamp)
+        if cursor:
+            try:
+                from datetime import datetime
+                cursor_dt = datetime.fromisoformat(cursor)
+                query = query.filter(UserRecipeInteraction.created_at < cursor_dt)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid cursor format: {cursor}")
+                raise HTTPException(status_code=400, detail="Invalid cursor format. Use ISO timestamp.")
+        
+        # Order by created_at descending and limit
+        interactions = query.order_by(
             UserRecipeInteraction.created_at.desc()
-        ).offset(skip).limit(limit).all()
+        ).limit(limit + 1).all()  # Fetch one extra to determine if there's a next page
+        
+        # Check if there are more results
+        has_more = len(interactions) > limit
+        if has_more:
+            interactions = interactions[:limit]  # Remove the extra item
         
         # Build response
         recipes = []
+        next_cursor = None
         for interaction, recipe in interactions:
             recipe_data = create_minimal_recipe_response(recipe)
             recipe_data["liked_at"] = interaction.created_at.isoformat()
             recipes.append(recipe_data)
-        
-        # Calculate total pages
-        total_pages = (total + limit - 1) // limit
+            next_cursor = interaction.created_at.isoformat()  # Last item's timestamp
         
         return {
             "recipes": recipes,
-            "total": total,
-            "page": page,
-            "pages": total_pages
+            "next_cursor": next_cursor if has_more else None,
+            "has_more": has_more
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting liked recipes: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -260,7 +307,7 @@ async def unlike_recipe(
         interaction = db.query(UserRecipeInteraction).filter(
             UserRecipeInteraction.user_id == current_user.id,
             UserRecipeInteraction.recipe_id == recipe_id,
-            UserRecipeInteraction.liked == True
+            UserRecipeInteraction.liked.is_(True)
         ).first()
         
         if not interaction:
