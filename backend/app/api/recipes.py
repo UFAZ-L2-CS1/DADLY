@@ -4,11 +4,11 @@ Handles recipe operations, swiping, and recommendations
 """
 
 import json
-from typing import List, Optional, Annotated
+from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Query, Depends
-from sqlalchemy import func, or_, and_
+from sqlalchemy import func, or_
 
-from app.schemas.schemas import RecipeResponse, DifficultyLevel
+from app.schemas.schemas import RecipeResponse
 from app.db.database import db_dependency
 from app.models.models import Recipe, User, UserRecipeInteraction, PantryItem
 from app.config.config import get_logger
