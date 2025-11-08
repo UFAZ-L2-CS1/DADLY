@@ -4,225 +4,279 @@ Handles recipe operations, swiping, and recommendations
 """
 
 import json
-import random
-from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional
-from app.schemas.schemas import (
-    RecipeResponse,
-    # SwipeResponse,  # Commented out for MVP
-    # RecipeMatch,    # Commented out for MVP
-    DifficultyLevel,
-    DietaryType,
-)
+from typing import List, Optional, Annotated
+from fastapi import APIRouter, HTTPException, Query, Depends
+from sqlalchemy import func, or_, and_
+
+from app.schemas.schemas import RecipeResponse, DifficultyLevel
 from app.db.database import db_dependency
-from app.models.models import Recipe, User, UserRecipeInteraction
+from app.models.models import Recipe, User, UserRecipeInteraction, PantryItem
 from app.config.config import get_logger
+from app.api.auth import get_current_user
 
 router = APIRouter()
 logger = get_logger(__name__)
 
-# For now, use a hardcoded test user ID (we'll replace this with real auth later)
-TEST_USER_ID = 1
+
+# Helper function to create minimal recipe response
+def create_minimal_recipe_response(recipe: Recipe) -> dict:
+    """Create minimal recipe data for feed"""
+    return {
+        "id": recipe.id,
+        "name": recipe.name,
+        "image_url": recipe.image_url,
+        "prep_time": recipe.prep_time,
+        "cook_time": recipe.cook_time,
+        "difficulty": recipe.difficulty,
+        "like_count": recipe.like_count,
+    }
 
 
-# Recipe Discovery & Swiping
-@router.get("/swipe", response_model=RecipeResponse, tags=["Recipes"])
-async def get_next_recipe(db: db_dependency):
+@router.get("/feed", tags=["Recipes"])
+async def get_recipe_feed(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: db_dependency,
+    limit: int = Query(20, ge=1, le=50),
+    exclude: Optional[str] = Query(None, description="Comma-separated recipe IDs to exclude (session-based)")
+):
     """
-    Get next recipe for swiping interface
-
-    Returns a recipe the user hasn't seen before,
-    filtered by dietary preferences
+    Get recipe feed for swiping interface
+    
+    Returns recipes filtered by:
+    - User's dietary preferences
+    - Excludes already liked recipes (permanent)
+    - Excludes session-excluded recipes (temporary)
+    - Prioritizes recipes matching user's pantry items if available
+    
+    Returns minimal recipe data for performance.
+    Use GET /recipes/{id} for full details.
     """
     try:
-        # Get recipes the user hasn't interacted with
-        seen_recipe_ids = (
-            db.query(UserRecipeInteraction.recipe_id)
-            .filter(UserRecipeInteraction.user_id == TEST_USER_ID)
-            .all()
-        )
-        seen_ids = [r[0] for r in seen_recipe_ids]
-
-        # Get unseen recipes
+        # Get liked recipe IDs (permanent exclusion)
+        liked_recipe_ids = db.query(UserRecipeInteraction.recipe_id).filter(
+            UserRecipeInteraction.user_id == current_user.id,
+            UserRecipeInteraction.liked == True
+        ).all()
+        liked_ids = [r[0] for r in liked_recipe_ids]
+        
+        # Parse session-excluded IDs (temporary exclusion)
+        session_excluded_ids = []
+        if exclude:
+            try:
+                session_excluded_ids = [int(x.strip()) for x in exclude.split(',') if x.strip()]
+            except ValueError:
+                pass
+        
+        # Combine exclusions
+        excluded_ids = list(set(liked_ids + session_excluded_ids))
+        
+        # Base query
         query = db.query(Recipe)
-        if seen_ids:
-            query = query.filter(~Recipe.id.in_(seen_ids))
-
-        recipes = query.all()
-
-        if not recipes:
-            raise HTTPException(status_code=404, detail="No more recipes to show")
-
-        # Pick a random recipe
-        recipe = random.choice(recipes)
-
-        # Convert to response model
-        return RecipeResponse(
-            id=recipe.id,
-            name=recipe.name,
-            description=recipe.description,
-            prep_time=recipe.prep_time,
-            cook_time=recipe.cook_time,
-            difficulty=recipe.difficulty,
-            image_url=recipe.image_url,
-            instructions=recipe.instructions,
-            created_at=recipe.created_at,
-            ingredients=json.loads(recipe.ingredients),
-            like_count=recipe.like_count,
-        )
-
+        
+        # Exclude already seen/liked recipes
+        if excluded_ids:
+            query = query.filter(~Recipe.id.in_(excluded_ids))
+        
+        # Filter by dietary type (if not "none")
+        if current_user.dietary_type and current_user.dietary_type != "none":
+            query = query.filter(Recipe.dietary_type == current_user.dietary_type)
+        
+        # Check if user has pantry items
+        pantry_items = db.query(PantryItem).filter(
+            PantryItem.user_id == current_user.id
+        ).all()
+        
+        if pantry_items:
+            # User has pantry items - match recipes by ingredients
+            ingredient_names = [item.ingredient_name.lower() for item in pantry_items]
+            
+            # Build OR conditions for LIKE matching
+            ingredient_conditions = []
+            for ingredient in ingredient_names:
+                ingredient_conditions.append(Recipe.ingredients.ilike(f'%{ingredient}%'))
+            
+            # Apply ingredient matching
+            if ingredient_conditions:
+                query = query.filter(or_(*ingredient_conditions))
+            
+            # Get all matching recipes
+            recipes = query.all()
+            
+            # Score recipes by ingredient match count
+            scored_recipes = []
+            for recipe in recipes:
+                recipe_ingredients_lower = recipe.ingredients.lower()
+                match_count = sum(1 for ing in ingredient_names if ing in recipe_ingredients_lower)
+                scored_recipes.append((recipe, match_count))
+            
+            # Sort by match count (highest first)
+            scored_recipes.sort(key=lambda x: x[1], reverse=True)
+            
+            # Take top matches up to limit
+            recipes = [recipe for recipe, _ in scored_recipes[:limit]]
+        else:
+            # No pantry items - return random recipes
+            recipes = query.order_by(func.rand()).limit(limit).all()
+        
+        # Convert to minimal response
+        result = [create_minimal_recipe_response(recipe) for recipe in recipes]
+        
+        logger.info(f"Returned {len(result)} recipes for user {current_user.id}")
+        return result
+        
     except Exception as e:
-        logger.error(f"Error getting next recipe: {e}")
+        logger.error(f"Error getting recipe feed: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/swipe", tags=["Recipes"])
-async def swipe_recipe(recipe_id: int, liked: bool, db: db_dependency):
+@router.post("/{recipe_id}/like", tags=["Recipes"])
+async def like_recipe(
+    recipe_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: db_dependency
+):
     """
-    Record user's swipe action on a recipe
-
-    - **recipe_id**: ID of the swiped recipe
-    - **liked**: True for like (right swipe), False for dislike (left swipe)
-
-    Returns the next recipe to show after this swipe
+    Like a recipe (right swipe)
+    
+    Creates a permanent like record and increments recipe like_count.
     """
     try:
         # Check if recipe exists
         recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
         if not recipe:
             raise HTTPException(status_code=404, detail="Recipe not found")
-
-        # Check if user already interacted with this recipe
-        existing = (
-            db.query(UserRecipeInteraction)
-            .filter(
-                UserRecipeInteraction.user_id == TEST_USER_ID,
-                UserRecipeInteraction.recipe_id == recipe_id,
-            )
-            .first()
-        )
-
+        
+        # Check if already liked
+        existing = db.query(UserRecipeInteraction).filter(
+            UserRecipeInteraction.user_id == current_user.id,
+            UserRecipeInteraction.recipe_id == recipe_id,
+            UserRecipeInteraction.liked == True
+        ).first()
+        
         if existing:
-            # Update existing interaction
-            existing.liked = liked
-        else:
-            # Create new interaction
-            interaction = UserRecipeInteraction(
-                user_id=TEST_USER_ID, recipe_id=recipe_id, liked=liked
-            )
-            db.add(interaction)
-
-        # Update recipe like count
-        if liked:
-            if not existing or not existing.liked:
-                recipe.like_count += 1
-        else:
-            if existing and existing.liked:
-                recipe.like_count = max(0, recipe.like_count - 1)
-
+            raise HTTPException(status_code=400, detail="Recipe already liked")
+        
+        # Create like interaction
+        interaction = UserRecipeInteraction(
+            user_id=current_user.id,
+            recipe_id=recipe_id,
+            liked=True
+        )
+        db.add(interaction)
+        
+        # Increment like count
+        recipe.like_count += 1
+        
         db.commit()
-
-        return {"status": "success", "recipe_id": recipe_id, "liked": liked}
-
+        
+        logger.info(f"User {current_user.id} liked recipe {recipe_id}")
+        return {
+            "message": "Recipe liked successfully",
+            "recipe_id": recipe_id,
+            "like_count": recipe.like_count
+        }
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error processing swipe: {e}")
+        logger.error(f"Error liking recipe {recipe_id}: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-# Recipe Collections
-@router.get("/liked", response_model=List[RecipeResponse], tags=["Recipes"])
+@router.get("/liked", tags=["Recipes"])
 async def get_liked_recipes(
+    current_user: Annotated[User, Depends(get_current_user)],
     db: db_dependency,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, le=100),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
 ):
     """
-    Get user's liked (saved) recipes with pagination
-
-    - **skip**: Number of recipes to skip (for pagination)
-    - **limit**: Maximum number of recipes to return
+    Get user's liked recipes collection with pagination
+    
+    Returns recipes with minimal data plus liked_at timestamp.
     """
     try:
-        # Get liked recipe IDs
-        liked_interactions = (
-            db.query(UserRecipeInteraction)
-            .filter(
-                UserRecipeInteraction.user_id == TEST_USER_ID,
-                UserRecipeInteraction.liked == True,
-            )
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
-
-        liked_recipe_ids = [i.recipe_id for i in liked_interactions]
-
-        if not liked_recipe_ids:
-            return []
-
-        # Get the actual recipes
-        recipes = db.query(Recipe).filter(Recipe.id.in_(liked_recipe_ids)).all()
-
-        # Convert to response models
-        result = []
-        for recipe in recipes:
-            result.append(
-                RecipeResponse(
-                    id=recipe.id,
-                    name=recipe.name,
-                    description=recipe.description,
-                    prep_time=recipe.prep_time,
-                    cook_time=recipe.cook_time,
-                    difficulty=recipe.difficulty,
-                    image_url=recipe.image_url,
-                    instructions=recipe.instructions,
-                    created_at=recipe.created_at,
-                    ingredients=json.loads(recipe.ingredients),
-                    like_count=recipe.like_count,
-                )
-            )
-
-        return result
-
+        # Calculate offset
+        skip = (page - 1) * limit
+        
+        # Get total count
+        total = db.query(UserRecipeInteraction).filter(
+            UserRecipeInteraction.user_id == current_user.id,
+            UserRecipeInteraction.liked == True
+        ).count()
+        
+        # Get liked interactions with recipes
+        interactions = db.query(UserRecipeInteraction, Recipe).join(
+            Recipe, UserRecipeInteraction.recipe_id == Recipe.id
+        ).filter(
+            UserRecipeInteraction.user_id == current_user.id,
+            UserRecipeInteraction.liked == True
+        ).order_by(
+            UserRecipeInteraction.created_at.desc()
+        ).offset(skip).limit(limit).all()
+        
+        # Build response
+        recipes = []
+        for interaction, recipe in interactions:
+            recipe_data = create_minimal_recipe_response(recipe)
+            recipe_data["liked_at"] = interaction.created_at.isoformat()
+            recipes.append(recipe_data)
+        
+        # Calculate total pages
+        total_pages = (total + limit - 1) // limit
+        
+        return {
+            "recipes": recipes,
+            "total": total,
+            "page": page,
+            "pages": total_pages
+        }
+        
     except Exception as e:
         logger.error(f"Error getting liked recipes: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/liked/{recipe_id}", tags=["Recipes"])
-async def unlike_recipe(recipe_id: int, db: db_dependency):
+@router.delete("/{recipe_id}/like", tags=["Recipes"])
+async def unlike_recipe(
+    recipe_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: db_dependency
+):
     """
-    Remove recipe from user's liked collection
+    Unlike a recipe (remove from liked collection)
+    
+    Deletes the like record and decrements recipe like_count.
     """
     try:
-        # Find the interaction
-        interaction = (
-            db.query(UserRecipeInteraction)
-            .filter(
-                UserRecipeInteraction.user_id == TEST_USER_ID,
-                UserRecipeInteraction.recipe_id == recipe_id,
-                UserRecipeInteraction.liked == True,
-            )
-            .first()
-        )
-
+        # Find the like interaction
+        interaction = db.query(UserRecipeInteraction).filter(
+            UserRecipeInteraction.user_id == current_user.id,
+            UserRecipeInteraction.recipe_id == recipe_id,
+            UserRecipeInteraction.liked == True
+        ).first()
+        
         if not interaction:
-            raise HTTPException(status_code=404, detail="Liked recipe not found")
-
-        # Update the interaction to unliked
-        interaction.liked = False
-
-        # Update recipe like count
+            raise HTTPException(status_code=404, detail="Like not found")
+        
+        # Delete the interaction
+        db.delete(interaction)
+        
+        # Decrement like count
         recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
         if recipe:
             recipe.like_count = max(0, recipe.like_count - 1)
-
+        
         db.commit()
-        return {"message": "Recipe unliked successfully"}
-
+        
+        logger.info(f"User {current_user.id} unliked recipe {recipe_id}")
+        return {
+            "message": "Recipe unliked successfully",
+            "recipe_id": recipe_id,
+            "like_count": recipe.like_count if recipe else 0
+        }
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -232,15 +286,20 @@ async def unlike_recipe(recipe_id: int, db: db_dependency):
 
 
 @router.get("/{recipe_id}", response_model=RecipeResponse, tags=["Recipes"])
-async def get_recipe(recipe_id: int, db: db_dependency):
+async def get_recipe_details(recipe_id: int, db: db_dependency):
     """
-    Get detailed information about a specific recipe
+    Get full recipe details
+    
+    Returns complete recipe information including description,
+    ingredients, and cooking instructions.
+    
+    This endpoint is public (no authentication required).
     """
     try:
         recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
         if not recipe:
             raise HTTPException(status_code=404, detail="Recipe not found")
-
+        
         return RecipeResponse(
             id=recipe.id,
             name=recipe.name,
@@ -254,113 +313,9 @@ async def get_recipe(recipe_id: int, db: db_dependency):
             ingredients=json.loads(recipe.ingredients),
             like_count=recipe.like_count,
         )
-
+        
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting recipe {recipe_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-# Recipe Discovery & Search
-@router.get("/", response_model=List[RecipeResponse], tags=["Recipes"])
-async def search_recipes(
-    db: db_dependency,
-    q: Optional[str] = Query(None, description="Search query"),
-    difficulty: Optional[DifficultyLevel] = None,
-    max_prep_time: Optional[int] = Query(None, ge=0),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, le=100),
-):
-    """
-    Search and filter recipes
-
-    - **q**: Search in recipe name and description
-    - **difficulty**: Filter by difficulty level
-    - **max_prep_time**: Maximum prep time in minutes
-    """
-    try:
-        query = db.query(Recipe)
-
-        # Apply filters
-        if q:
-            search = f"%{q}%"
-            query = query.filter(
-                (Recipe.name.ilike(search)) | (Recipe.description.ilike(search))
-            )
-
-        if difficulty:
-            query = query.filter(Recipe.difficulty == difficulty.value)
-
-        if max_prep_time:
-            query = query.filter(Recipe.prep_time <= max_prep_time)
-
-        # Apply pagination
-        recipes = query.offset(skip).limit(limit).all()
-
-        # Convert to response models
-        result = []
-        for recipe in recipes:
-            result.append(
-                RecipeResponse(
-                    id=recipe.id,
-                    name=recipe.name,
-                    description=recipe.description,
-                    prep_time=recipe.prep_time,
-                    cook_time=recipe.cook_time,
-                    difficulty=recipe.difficulty,
-                    image_url=recipe.image_url,
-                    instructions=recipe.instructions,
-                    created_at=recipe.created_at,
-                    ingredients=json.loads(recipe.ingredients),
-                    like_count=recipe.like_count,
-                )
-            )
-
-        return result
-
-    except Exception as e:
-        logger.error(f"Error searching recipes: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.get("/trending", response_model=List[RecipeResponse], tags=["Recipes"])
-async def get_trending_recipes(
-    db: db_dependency,
-    timeframe: str = Query("week", regex="^(day|week|month)$"),
-    limit: int = Query(10, le=50),
-):
-    """
-    Get trending recipes based on recent likes
-
-    - **timeframe**: Time period for trending calculation
-    - **limit**: Number of recipes to return
-    """
-    try:
-        # For now, just return recipes with highest like count
-        # TODO: Add time-based filtering for trending
-        recipes = db.query(Recipe).order_by(Recipe.like_count.desc()).limit(limit).all()
-
-        result = []
-        for recipe in recipes:
-            result.append(
-                RecipeResponse(
-                    id=recipe.id,
-                    name=recipe.name,
-                    description=recipe.description,
-                    prep_time=recipe.prep_time,
-                    cook_time=recipe.cook_time,
-                    difficulty=recipe.difficulty,
-                    image_url=recipe.image_url,
-                    instructions=recipe.instructions,
-                    created_at=recipe.created_at,
-                    ingredients=json.loads(recipe.ingredients),
-                    like_count=recipe.like_count,
-                )
-            )
-
-        return result
-
-    except Exception as e:
-        logger.error(f"Error getting trending recipes: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
