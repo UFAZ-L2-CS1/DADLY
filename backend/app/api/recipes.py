@@ -290,6 +290,7 @@ async def get_liked_recipes(
             # Use consistent format for cursor (includes microseconds for precision)
             timestamp = interaction.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f')
             recipe_data["liked_at"] = timestamp
+            recipes.append(recipe_data)  # Add to the list!
             next_cursor = timestamp  # Last item's timestamp
         
         return {
