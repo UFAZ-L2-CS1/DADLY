@@ -6,7 +6,7 @@ Handles recipe operations, swiping, and recommendations
 import json
 from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Query, Depends
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, update
 
 from app.schemas.schemas import RecipeResponse
 from app.db.database import db_dependency
@@ -65,7 +65,7 @@ async def get_recipe_feed(
             try:
                 session_excluded_ids = [int(x.strip()) for x in exclude.split(',') if x.strip()]
             except ValueError:
-                pass
+                logger.warning(f"Invalid exclude parameter: {exclude}. Skipping session_excluded_ids parsing.")
         
         # Combine exclusions
         excluded_ids = list(set(liked_ids + session_excluded_ids))
@@ -76,10 +76,6 @@ async def get_recipe_feed(
         # Exclude already seen/liked recipes
         if excluded_ids:
             query = query.filter(~Recipe.id.in_(excluded_ids))
-        
-        # Filter by dietary type (if not "none")
-        if current_user.dietary_type and current_user.dietary_type != "none":
-            query = query.filter(Recipe.dietary_type == current_user.dietary_type)
         
         # Check if user has pantry items
         pantry_items = db.query(PantryItem).filter(
@@ -93,14 +89,16 @@ async def get_recipe_feed(
             # Build OR conditions for LIKE matching
             ingredient_conditions = []
             for ingredient in ingredient_names:
-                ingredient_conditions.append(Recipe.ingredients.ilike(f'%{ingredient}%'))
+                pattern = f'%{ingredient}%'
+                ingredient_conditions.append(Recipe.ingredients.ilike(pattern))
             
-            # Apply ingredient matching
+            # Apply ingredient matching and limit initial query to prevent loading too many recipes
             if ingredient_conditions:
                 query = query.filter(or_(*ingredient_conditions))
             
-            # Get all matching recipes
-            recipes = query.all()
+            # Fetch reasonable upper bound of recipes before scoring (e.g., 10x the limit)
+            max_fetch = min(limit * 10, 500)  # Cap at 500 to prevent memory issues
+            recipes = query.limit(max_fetch).all()
             
             # Score recipes by ingredient match count
             scored_recipes = []
@@ -163,11 +161,19 @@ async def like_recipe(
             liked=True
         )
         db.add(interaction)
+        db.flush()  # Flush to ensure interaction is created before updating counter
         
-        # Increment like count
-        recipe.like_count += 1
+        # Atomically increment like count to prevent race conditions
+        db.execute(
+            update(Recipe)
+            .where(Recipe.id == recipe_id)
+            .values(like_count=Recipe.like_count + 1)
+        )
         
         db.commit()
+        
+        # Fetch updated like count
+        db.refresh(recipe)
         
         logger.info(f"User {current_user.id} liked recipe {recipe_id}")
         return {
@@ -262,19 +268,27 @@ async def unlike_recipe(
         
         # Delete the interaction
         db.delete(interaction)
+        db.flush()  # Flush to ensure interaction is deleted before updating counter
         
-        # Decrement like count
-        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
-        if recipe:
-            recipe.like_count = max(0, recipe.like_count - 1)
+        # Atomically decrement like count to prevent race conditions
+        # Use CASE to ensure count doesn't go below 0
+        db.execute(
+            update(Recipe)
+            .where(Recipe.id == recipe_id)
+            .values(like_count=func.greatest(0, Recipe.like_count - 1))
+        )
         
         db.commit()
+        
+        # Fetch updated like count
+        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+        updated_like_count = recipe.like_count if recipe else 0
         
         logger.info(f"User {current_user.id} unliked recipe {recipe_id}")
         return {
             "message": "Recipe unliked successfully",
             "recipe_id": recipe_id,
-            "like_count": recipe.like_count if recipe else 0
+            "like_count": updated_like_count
         }
         
     except HTTPException:
