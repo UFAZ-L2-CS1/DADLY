@@ -4,6 +4,7 @@ Handles recipe operations, swiping, and recommendations
 """
 
 import json
+from datetime import datetime
 from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy import func, or_, update
@@ -112,11 +113,14 @@ async def get_recipe_feed(
             # User has pantry items - match recipes by ingredients
             ingredient_names = [item.ingredient_name.lower() for item in pantry_items]
             
-            # Build OR conditions for LIKE matching
+            # Build OR conditions for LIKE matching with escaped wildcards
             ingredient_conditions = []
             for ingredient in ingredient_names:
-                pattern = f'%{ingredient}%'
-                ingredient_conditions.append(Recipe.ingredients.ilike(pattern))
+                # Escape SQL LIKE wildcards (% and _) to prevent unintended matching
+                escaped_ingredient = ingredient.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+                pattern = f'%{escaped_ingredient}%'
+                # Use escape parameter to tell database about our escape character
+                ingredient_conditions.append(Recipe.ingredients.ilike(pattern, escape='\\'))
             
             # Apply ingredient matching and limit initial query to prevent loading too many recipes
             if ingredient_conditions:
@@ -141,7 +145,7 @@ async def get_recipe_feed(
             recipes = [recipe for recipe, _ in scored_recipes[:limit]]
         else:
             # No pantry items - return random recipes
-            recipes = query.order_by(func.rand()).limit(limit).all()
+            recipes = query.order_by(func.random()).limit(limit).all()
         
         # Convert to minimal response
         result = [create_minimal_recipe_response(recipe) for recipe in recipes]
@@ -211,10 +215,18 @@ async def like_recipe(
                 "like_count": recipe.like_count
             }
         except IntegrityError as e:
-            # Database-level unique constraint violation (race condition caught)
             db.rollback()
-            logger.warning(f"Duplicate like attempt by user {current_user.id} for recipe {recipe_id}: {e}")
-            raise HTTPException(status_code=400, detail="Recipe already liked")
+            # Check if it's the specific unique constraint violation we expect
+            error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
+            
+            if 'uq_user_recipe' in error_msg.lower() or 'duplicate' in error_msg.lower():
+                # Unique constraint violation - duplicate like attempt (race condition)
+                logger.warning(f"Duplicate like attempt by user {current_user.id} for recipe {recipe_id}")
+                raise HTTPException(status_code=400, detail="Recipe already liked")
+            else:
+                # Other integrity error (foreign key, null constraint, etc.)
+                logger.error(f"Integrity error while liking recipe {recipe_id} by user {current_user.id}: {error_msg}")
+                raise HTTPException(status_code=500, detail="Database integrity error")
         
     except HTTPException:
         raise
@@ -252,7 +264,6 @@ async def get_liked_recipes(
         # Apply cursor if provided (fetch records older than cursor timestamp)
         if cursor:
             try:
-                from datetime import datetime
                 cursor_dt = datetime.fromisoformat(cursor)
                 query = query.filter(UserRecipeInteraction.created_at < cursor_dt)
             except (ValueError, TypeError):
