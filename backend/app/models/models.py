@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
 )
+import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.database import Base
@@ -55,6 +56,11 @@ class Recipe(Base):
 
 class UserRecipeInteraction(Base):
     __tablename__ = "user_recipe_interactions"
+    __table_args__ = (
+        # Prevent duplicate likes: a user can only like a recipe once
+        # This is enforced at the database level to prevent race conditions
+        sa.UniqueConstraint('user_id', 'recipe_id', name='uq_user_recipe'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
