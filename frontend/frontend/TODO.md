@@ -1,0 +1,3 @@
+- [ ] Rename 'buf' to 'input_str' in tempCodeRunnerFile.c
+- [ ] Add comments to to_upper and reverse_str functions
+- [ ] Change for loop in to_upper to while loop
