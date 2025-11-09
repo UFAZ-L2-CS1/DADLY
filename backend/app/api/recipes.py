@@ -20,8 +20,6 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 # Constants for feed optimization and security
-FETCH_MULTIPLIER = 10  # Fetch 10x the requested limit to allow scoring/sorting before final selection
-MAX_FETCH_RECIPES = 500  # Absolute cap to prevent memory exhaustion
 MAX_EXCLUDE_IDS = 100  # Maximum number of excluded recipe IDs to prevent abuse
 MAX_EXCLUDE_LENGTH = 1000  # Maximum length of exclude parameter string
 
