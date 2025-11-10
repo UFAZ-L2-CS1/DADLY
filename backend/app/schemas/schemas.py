@@ -55,6 +55,37 @@ class UserResponse(UserBase):
         from_attributes = True
 
 
+class UserUpdateRequest(BaseModel):
+    """Request model for updating user profile"""
+    name: Optional[str] = None
+    dietary_type: Optional[DietaryType] = None
+    allergies: Optional[str] = None
+    
+    @field_validator("name")
+    @staticmethod
+    def validate_name(v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.strip()
+            if not v:
+                raise ValueError("Name cannot be empty")
+            if len(v) > 100:
+                raise ValueError("Name must not exceed 100 characters")
+        return v
+
+
+class UserDeleteRequest(BaseModel):
+    """Request model for account deletion (requires password confirmation)"""
+    password: str
+
+
+class UserStatsResponse(BaseModel):
+    """Response model for user statistics"""
+    total_recipes_liked: int
+    total_pantry_items: int
+    account_created_at: datetime
+    days_active: int
+
+
 # Token Models
 class Token(BaseModel):
     access_token: str
