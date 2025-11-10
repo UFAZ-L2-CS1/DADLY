@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from datetime import datetime
 
 from app.config.config import setup_logging, Config, get_logger
 from app.api.health import router as health_router
@@ -24,10 +23,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # React default
-        "http://localhost:5173",  # Vite default
-        "http://localhost:4200",  # Angular default
-        # Add your frontend URL here when deployed
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods

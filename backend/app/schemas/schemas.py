@@ -97,11 +97,29 @@ class UserRecipeInteraction(BaseModel):
 
 
 # Pantry Management
-class PantryItem(BaseModel):
-    user_id: int
+class PantryItemResponse(BaseModel):
+    """Response model for pantry items"""
+    id: int
     ingredient_name: str
     quantity: Optional[str] = None
     added_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AddIngredientRequest(BaseModel):
+    """Request model for adding a single ingredient"""
+    ingredient_name: str
+    quantity: Optional[str] = None
+
+
+class BulkAddRequest(BaseModel):
+    """Request model for bulk adding ingredients"""
+    ingredients: List[AddIngredientRequest]
+
+
+
 
 
 # API Response Models (COMMENTED OUT FOR MVP - UNCOMMENT LATER IF NEEDED)
