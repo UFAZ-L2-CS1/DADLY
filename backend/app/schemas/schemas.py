@@ -116,7 +116,7 @@ class AddIngredientRequest(BaseModel):
     @field_validator("ingredient_name")
     @staticmethod
     def validate_ingredient_name(v: str) -> str:
-        v = v.strip()
+        v = v.strip().lower() 
         if not v:
             raise ValueError("Ingredient name cannot be empty")
         if len(v) > 100:
