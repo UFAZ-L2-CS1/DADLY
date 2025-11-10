@@ -55,6 +55,26 @@ class UserResponse(UserBase):
         from_attributes = True
 
 
+class UserUpdateRequest(BaseModel):
+    """Request model for updating user profile"""
+    name: Optional[str] = None
+    dietary_type: Optional[DietaryType] = None
+    allergies: Optional[str] = None
+
+
+class UserDeleteRequest(BaseModel):
+    """Request model for account deletion (requires password confirmation)"""
+    password: str
+
+
+class UserStatsResponse(BaseModel):
+    """Response model for user statistics"""
+    total_recipes_liked: int
+    total_pantry_items: int
+    account_created_at: datetime
+    days_active: int
+
+
 # Token Models
 class Token(BaseModel):
     access_token: str
