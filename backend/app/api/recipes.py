@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Query, Depends
-from sqlalchemy import func, or_, update
+from sqlalchemy import func, or_, update, case
 from sqlalchemy.exc import IntegrityError
 
 from app.schemas.schemas import RecipeResponse
@@ -122,8 +122,8 @@ async def get_recipe_feed(
                 
                 # Build CASE expression: 1 if match, 0 otherwise
                 match_cases.append(
-                    func.case(
-                        (Recipe.ingredients.ilike(pattern, escape='\\'), 1),
+                    case(
+                        (Recipe.ingredients.ilike(pattern, escape='\\'), 1),  # Positional tuple
                         else_=0
                     )
                 )
@@ -136,11 +136,15 @@ async def get_recipe_feed(
                 query = query.filter(or_(*ingredient_conditions))
             
             # Add computed match_count column by summing all CASE expressions
-            match_count_expr = sum(match_cases)
+            # Chain CASE expressions with + operator to create proper SQL expression
+            match_count_expr = match_cases[0]
+            for case_expr in match_cases[1:]:
+                match_count_expr = match_count_expr + case_expr
+            
             query = query.add_columns(match_count_expr.label('match_count'))
             
             # Order by match count (highest first) and limit
-            query = query.order_by(func.desc('match_count'))
+            query = query.order_by(match_count_expr.desc())
             query = query.limit(limit)
             
             # Execute query - results are tuples of (Recipe, match_count)
