@@ -46,7 +46,13 @@ async def update_user_profile(
         
         # Update only provided fields
         if request.name is not None:
-            current_user.name = request.name
+            name_stripped = request.name.strip()
+            if not name_stripped:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Name cannot be empty"
+                )
+            current_user.name = name_stripped
             updated = True
         
         if request.dietary_type is not None:
@@ -71,6 +77,7 @@ async def update_user_profile(
         return current_user
         
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
         logger.error(f"Error updating profile for user {current_user.id}: {e}")
@@ -123,8 +130,8 @@ async def delete_user_account(
                 .where(Recipe.id.in_(liked_recipe_ids))
                 .values(like_count=func.greatest(0, Recipe.like_count - 1))
             )
-        
-        # Delete user interactions (cascade will handle this, but explicit for clarity)
+                
+        # Delete user interactions (no cascade configured, so explicit deletion required)
         db.query(UserRecipeInteraction).filter(
             UserRecipeInteraction.user_id == user_id
         ).delete(synchronize_session=False)
@@ -137,10 +144,10 @@ async def delete_user_account(
         # Delete user
         db.delete(current_user)
         
-        # Blacklist current token
-        token_blacklist.add(token)
-        
         db.commit()
+        
+        # Blacklist current token (after successful commit)
+        token_blacklist.add(token)
         
         logger.info(f"User {user_id} account deleted (liked: {len(liked_recipe_ids)} recipes)")
         
@@ -150,6 +157,7 @@ async def delete_user_account(
         }
         
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
         logger.error(f"Error deleting account for user {current_user.id}: {e}")
@@ -190,12 +198,12 @@ async def get_user_stats(
         if created_at.tzinfo is None:
             # Assume UTC if naive
             created_at = created_at.replace(tzinfo=timezone.utc)
-        days_active = (now - created_at).days
+        days_active = max(0, (now - created_at).days)
         
         return UserStatsResponse(
             total_recipes_liked=total_liked,
             total_pantry_items=total_pantry,
-            account_created_at=current_user.created_at,
+            account_created_at=created_at,
             days_active=days_active
         )
         
