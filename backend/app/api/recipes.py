@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Query, Depends
-from sqlalchemy import func, or_, update
+from sqlalchemy import func, or_, update, case
 from sqlalchemy.exc import IntegrityError
 
 from app.schemas.schemas import RecipeResponse
@@ -122,8 +122,8 @@ async def get_recipe_feed(
                 
                 # Build CASE expression: 1 if match, 0 otherwise
                 match_cases.append(
-                    func.case(
-                        (Recipe.ingredients.ilike(pattern, escape='\\'), 1),
+                    case(
+                        (Recipe.ingredients.ilike(pattern, escape='\\'), 1),  # Positional tuple
                         else_=0
                     )
                 )
@@ -131,21 +131,30 @@ async def get_recipe_feed(
                 # Also build OR condition for filtering
                 ingredient_conditions.append(Recipe.ingredients.ilike(pattern, escape='\\'))
             
-            # Apply ingredient matching filter
-            if ingredient_conditions:
-                query = query.filter(or_(*ingredient_conditions))
-            
-            # Add computed match_count column by summing all CASE expressions
-            match_count_expr = sum(match_cases)
-            query = query.add_columns(match_count_expr.label('match_count'))
-            
-            # Order by match count (highest first) and limit
-            query = query.order_by(func.desc('match_count'))
-            query = query.limit(limit)
-            
-            # Execute query - results are tuples of (Recipe, match_count)
-            results = query.all()
-            recipes = [result[0] for result in results]
+            # Check if we have valid ingredients to match
+            if not match_cases:
+                # No valid pantry items to match - return random recipes
+                recipes = query.order_by(func.rand()).limit(limit).all()
+            else:
+                # Apply ingredient matching filter
+                if ingredient_conditions:
+                    query = query.filter(or_(*ingredient_conditions))
+                
+                # Add computed match_count column by summing all CASE expressions
+                # Chain CASE expressions with + operator to create proper SQL expression
+                match_count_expr = match_cases[0]
+                for case_expr in match_cases[1:]:
+                    match_count_expr = match_count_expr + case_expr
+                
+                query = query.add_columns(match_count_expr.label('match_count'))
+                
+                # Order by match count (highest first) and limit
+                query = query.order_by(match_count_expr.desc())
+                query = query.limit(limit)
+                
+                # Execute query - results are tuples of (Recipe, match_count)
+                results = query.all()
+                recipes = [result[0] for result in results]
         else:
             # No pantry items - return random recipes
             recipes = query.order_by(func.rand()).limit(limit).all()

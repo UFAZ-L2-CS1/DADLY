@@ -75,6 +75,11 @@ class UserRecipeInteraction(Base):
 
 class PantryItem(Base):
     __tablename__ = "pantry_items"
+    __table_args__ = (
+        # Prevent duplicate ingredients: a user can only have one entry per ingredient
+        # This is enforced at the database level to prevent race conditions
+        sa.UniqueConstraint('user_id', 'ingredient_name', name='uq_user_ingredient'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
