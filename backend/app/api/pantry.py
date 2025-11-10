@@ -6,18 +6,27 @@ Handles user's pantry items and ingredient tracking
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Annotated
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 from app.db.database import db_dependency
 from app.models.models import User, PantryItem
 from app.api.auth import get_current_user
-from app.schemas.schemas import AddIngredientRequest, BulkAddRequest
+from app.schemas.schemas import AddIngredientRequest, BulkAddRequest, PantryItemResponse
 from app.config.config import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 
-@router.get("/", tags=["Pantry"])
+def normalize_ingredient_name(name: str) -> str:
+    """
+    Normalize ingredient name to lowercase and strip whitespace.
+    Ensures consistent storage and comparison.
+    """
+    return name.strip().lower()
+
+
+@router.get("/", response_model=list[PantryItemResponse], tags=["Pantry"])
 async def get_pantry_ingredients(
     current_user: Annotated[User, Depends(get_current_user)],
     db: db_dependency
@@ -33,18 +42,7 @@ async def get_pantry_ingredients(
             PantryItem.user_id == current_user.id
         ).order_by(PantryItem.added_at.desc()).all()
         
-        # Return list
-        result = [
-            {
-                "id": item.id,
-                "ingredient_name": item.ingredient_name,
-                "quantity": item.quantity,
-                "added_at": item.added_at.isoformat()
-            }
-            for item in pantry_items
-        ]
-        
-        return result
+        return pantry_items
         
     except Exception as e:
         logger.error(f"Error getting pantry for user {current_user.id}: {e}")
@@ -65,10 +63,20 @@ async def add_pantry_ingredient(
     """
     try:
         # Normalize ingredient name to lowercase
-        ingredient_lower = request.ingredient_name.strip().lower()
+        ingredient_lower = normalize_ingredient_name(request.ingredient_name)
         
+        # Validate ingredient name
         if not ingredient_lower:
             raise HTTPException(status_code=400, detail="Ingredient name cannot be empty")
+        
+        if len(ingredient_lower) > 100:
+            raise HTTPException(status_code=400, detail="Ingredient name too long (max 100 characters)")
+        
+        if ingredient_lower.isdigit():
+            raise HTTPException(status_code=400, detail="Ingredient name cannot be purely numeric")
+        
+        if not any(c.isalnum() for c in ingredient_lower):
+            raise HTTPException(status_code=400, detail="Ingredient name must contain at least one alphanumeric character")
         
         # Check if ingredient already exists (case-insensitive)
         # Use func.lower() to handle any legacy mixed-case data
@@ -90,8 +98,17 @@ async def add_pantry_ingredient(
             quantity=request.quantity
         )
         db.add(new_item)
-        db.commit()
-        db.refresh(new_item)
+        
+        try:
+            db.commit()
+            db.refresh(new_item)
+        except IntegrityError:
+            # Race condition: another request added this between our check and commit
+            db.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ingredient '{ingredient_lower}' already exists in pantry"
+            )
         
         logger.info(f"User {current_user.id} added ingredient: {ingredient_lower}")
         
@@ -136,41 +153,69 @@ async def add_multiple_ingredients(
         ).all()
         existing_set = {item[0] for item in existing_items}
         
-        # Deduplicate input list (case-insensitive, keep first)
+        # Deduplicate input list (case-insensitive, keep first) and validate
         seen = set()
         unique_ingredients = []
+        invalid_ingredients = []
+        
         for item in request.ingredients:
-            ingredient_lower = item.ingredient_name.strip().lower()
-            if ingredient_lower and ingredient_lower not in seen:
+            ingredient_lower = normalize_ingredient_name(item.ingredient_name)
+            
+            # Track invalid items (empty, too long, purely numeric, or non-alphanumeric names)
+            if not ingredient_lower:
+                invalid_ingredients.append(f"'{item.ingredient_name}' (empty)")
+                continue
+            if len(ingredient_lower) > 100:
+                invalid_ingredients.append(f"'{ingredient_lower}' (too long)")
+                continue
+            if ingredient_lower.isdigit():
+                invalid_ingredients.append(f"'{ingredient_lower}' (purely numeric)")
+                continue
+            if not any(c.isalnum() for c in ingredient_lower):
+                invalid_ingredients.append(f"'{ingredient_lower}' (no alphanumeric)")
+                continue
+            
+            if ingredient_lower not in seen:
                 seen.add(ingredient_lower)
                 unique_ingredients.append((ingredient_lower, item.quantity))
         
-        # Filter out already existing ingredients
+        # Add ingredients (skip existing check, rely on unique constraint)
+        # This prevents race conditions by letting database enforce uniqueness
         added = []
         skipped = []
         
         for ingredient_name, quantity in unique_ingredients:
+            # Skip if we already know it exists from our pre-check
             if ingredient_name in existing_set:
                 skipped.append(ingredient_name)
-            else:
+                continue
+            
+            try:
                 new_item = PantryItem(
                     user_id=current_user.id,
                     ingredient_name=ingredient_name,
                     quantity=quantity
                 )
                 db.add(new_item)
+                db.flush()  # Flush to catch constraint violations immediately
                 added.append(ingredient_name)
+            except IntegrityError:
+                # Race condition: another request added this between our check and insert
+                db.rollback()
+                skipped.append(ingredient_name)
         
         db.commit()
         
-        logger.info(f"User {current_user.id} bulk added {len(added)} ingredients, skipped {len(skipped)}")
+        logger.info(f"User {current_user.id} bulk added {len(added)} ingredients, skipped {len(skipped)}, invalid {len(invalid_ingredients)}")
         
         return {
             "message": "Bulk add completed",
             "added": added,
             "skipped": skipped,
+            "invalid": invalid_ingredients,
             "added_count": len(added),
-            "skipped_count": len(skipped)
+            "skipped_count": len(skipped),
+            "invalid_count": len(invalid_ingredients)
         }
         
     except HTTPException:
@@ -252,4 +297,4 @@ async def clear_pantry(
     except Exception as e:
         logger.error(f"Error clearing pantry for user {current_user.id}: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Internal server error")    

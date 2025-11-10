@@ -106,12 +106,36 @@ class PantryItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
+    
+    @field_validator("ingredient_name")
+    @staticmethod
+    def validate_ingredient_name(v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Ingredient name cannot be empty")
+        if len(v) > 100:
+            raise ValueError("Ingredient name must not exceed 100 characters")
+        return v
 
 
 class AddIngredientRequest(BaseModel):
     """Request model for adding a single ingredient"""
     ingredient_name: str
     quantity: Optional[str] = None
+    
+    @field_validator("ingredient_name")
+    @staticmethod
+    def validate_ingredient_name(v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Ingredient name cannot be empty")
+        if len(v) > 100:
+            raise ValueError("Ingredient name must not exceed 100 characters")
+        if v.isdigit():
+            raise ValueError("Ingredient name cannot be purely numeric")
+        if not any(c.isalnum() for c in v):
+            raise ValueError("Ingredient name must contain at least one alphanumeric character")
+        return v
 
 
 class BulkAddRequest(BaseModel):
