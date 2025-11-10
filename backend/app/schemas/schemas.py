@@ -117,23 +117,3 @@ class AddIngredientRequest(BaseModel):
 class BulkAddRequest(BaseModel):
     """Request model for bulk adding ingredients"""
     ingredients: List[AddIngredientRequest]
-
-
-
-
-
-# API Response Models (COMMENTED OUT FOR MVP - UNCOMMENT LATER IF NEEDED)
-# class RecipeMatch(BaseModel):
-#     """Recipe with match percentage based on available ingredients"""
-#
-#     recipe: RecipeResponse
-#     match_percentage: float
-#     missing_ingredients: List[str]
-
-
-# class SwipeResponse(BaseModel):
-#     """Response after swiping on a recipe"""
-#
-#     recipe_id: int
-#     liked: bool
-#     next_recipe: Optional[RecipeResponse] = None

@@ -4,17 +4,17 @@ Handles user's pantry items and ingredient tracking
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Annotated 
+from typing import Annotated
+from sqlalchemy import func
 
 from app.db.database import db_dependency
 from app.models.models import User, PantryItem
 from app.api.auth import get_current_user
-from app.schemas.schemas import AddIngredientRequest, BulkAddRequest, PantryItemResponse
+from app.schemas.schemas import AddIngredientRequest, BulkAddRequest
 from app.config.config import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
-
 
 
 @router.get("/", tags=["Pantry"])
@@ -25,8 +25,7 @@ async def get_pantry_ingredients(
     """
     Get all ingredients in user's pantry
     
-    Returns list of pantry items. Automatically cleans up any duplicate entries,
-    keeping only the most recent one for each ingredient.
+    Returns list of pantry items ordered by most recently added.
     """
     try:
         # Get all pantry items for user
@@ -34,27 +33,7 @@ async def get_pantry_ingredients(
             PantryItem.user_id == current_user.id
         ).order_by(PantryItem.added_at.desc()).all()
         
-        # Detect and clean duplicates (case-insensitive)
-        seen_ingredients = set()
-        duplicates_to_delete = []
-        clean_items = []
-        
-        for item in pantry_items:
-            ingredient_lower = item.ingredient_name.lower()
-            if ingredient_lower in seen_ingredients:
-                # Duplicate found - mark for deletion
-                duplicates_to_delete.append(item.id)
-            else:
-                seen_ingredients.add(ingredient_lower)
-                clean_items.append(item)
-        
-        # Delete duplicates from database
-        if duplicates_to_delete:
-            db.query(PantryItem).filter(PantryItem.id.in_(duplicates_to_delete)).delete(synchronize_session=False)
-            db.commit()
-            logger.info(f"Cleaned {len(duplicates_to_delete)} duplicate pantry items for user {current_user.id}")
-        
-        # Return clean list
+        # Return list
         result = [
             {
                 "id": item.id,
@@ -62,7 +41,7 @@ async def get_pantry_ingredients(
                 "quantity": item.quantity,
                 "added_at": item.added_at.isoformat()
             }
-            for item in clean_items
+            for item in pantry_items
         ]
         
         return result
@@ -92,9 +71,10 @@ async def add_pantry_ingredient(
             raise HTTPException(status_code=400, detail="Ingredient name cannot be empty")
         
         # Check if ingredient already exists (case-insensitive)
+        # Use func.lower() to handle any legacy mixed-case data
         existing = db.query(PantryItem).filter(
             PantryItem.user_id == current_user.id,
-            PantryItem.ingredient_name == ingredient_lower
+            func.lower(PantryItem.ingredient_name) == ingredient_lower
         ).first()
         
         if existing:
@@ -150,11 +130,11 @@ async def add_multiple_ingredients(
         if not request.ingredients:
             raise HTTPException(status_code=400, detail="Ingredients list cannot be empty")
         
-        # Get existing pantry items
-        existing_items = db.query(PantryItem.ingredient_name).filter(
+        # Get existing pantry items (normalize to lowercase for comparison)
+        existing_items = db.query(func.lower(PantryItem.ingredient_name)).filter(
             PantryItem.user_id == current_user.id
         ).all()
-        existing_set = {item[0].lower() for item in existing_items}
+        existing_set = {item[0] for item in existing_items}
         
         # Deduplicate input list (case-insensitive, keep first)
         seen = set()
