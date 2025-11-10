@@ -46,13 +46,7 @@ async def update_user_profile(
         
         # Update only provided fields
         if request.name is not None:
-            name_stripped = request.name.strip()
-            if not name_stripped:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Name cannot be empty"
-                )
-            current_user.name = name_stripped
+            current_user.name = request.name.strip()
             updated = True
         
         if request.dietary_type is not None:
