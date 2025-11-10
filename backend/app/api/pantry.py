@@ -63,20 +63,8 @@ async def add_pantry_ingredient(
     """
     try:
         # Normalize ingredient name to lowercase
+        # (Validation already done by Pydantic schema)
         ingredient_lower = normalize_ingredient_name(request.ingredient_name)
-        
-        # Validate ingredient name
-        if not ingredient_lower:
-            raise HTTPException(status_code=400, detail="Ingredient name cannot be empty")
-        
-        if len(ingredient_lower) > 100:
-            raise HTTPException(status_code=400, detail="Ingredient name too long (max 100 characters)")
-        
-        if ingredient_lower.isdigit():
-            raise HTTPException(status_code=400, detail="Ingredient name cannot be purely numeric")
-        
-        if not any(c.isalnum() for c in ingredient_lower):
-            raise HTTPException(status_code=400, detail="Ingredient name must contain at least one alphanumeric character")
         
         # Check if ingredient already exists (case-insensitive)
         # Use func.lower() to handle any legacy mixed-case data
@@ -153,27 +141,13 @@ async def add_multiple_ingredients(
         ).all()
         existing_set = {item[0] for item in existing_items}
         
-        # Deduplicate input list (case-insensitive, keep first) and validate
+        # Deduplicate input list (case-insensitive, keep first)
+        # Validation already done by Pydantic schema for each AddIngredientRequest
         seen = set()
         unique_ingredients = []
-        invalid_ingredients = []
         
         for item in request.ingredients:
             ingredient_lower = normalize_ingredient_name(item.ingredient_name)
-            
-            # Track invalid items (empty, too long, purely numeric, or non-alphanumeric names)
-            if not ingredient_lower:
-                invalid_ingredients.append(f"'{item.ingredient_name}' (empty)")
-                continue
-            if len(ingredient_lower) > 100:
-                invalid_ingredients.append(f"'{ingredient_lower}' (too long)")
-                continue
-            if ingredient_lower.isdigit():
-                invalid_ingredients.append(f"'{ingredient_lower}' (purely numeric)")
-                continue
-            if not any(c.isalnum() for c in ingredient_lower):
-                invalid_ingredients.append(f"'{ingredient_lower}' (no alphanumeric)")
-                continue
             
             if ingredient_lower not in seen:
                 seen.add(ingredient_lower)
@@ -190,32 +164,47 @@ async def add_multiple_ingredients(
                 skipped.append(ingredient_name)
                 continue
             
-            try:
-                new_item = PantryItem(
-                    user_id=current_user.id,
-                    ingredient_name=ingredient_name,
-                    quantity=quantity
-                )
-                db.add(new_item)
-                db.flush()  # Flush to catch constraint violations immediately
-                added.append(ingredient_name)
-            except IntegrityError:
-                # Race condition: another request added this between our check and insert
-                db.rollback()
-                skipped.append(ingredient_name)
+            new_item = PantryItem(
+                user_id=current_user.id,
+                ingredient_name=ingredient_name,
+                quantity=quantity
+            )
+            db.add(new_item)
         
-        db.commit()
+        # Commit all at once - if any constraint violation, handle it
+        try:
+            db.commit()
+            # If successful, all items were added
+            added = [name for name, _ in unique_ingredients if name not in existing_set]
+        except IntegrityError:
+            # Some items conflicted - need to check which ones succeeded
+            db.rollback()
+            # Re-add one by one to identify conflicts
+            for ingredient_name, quantity in unique_ingredients:
+                if ingredient_name in existing_set:
+                    skipped.append(ingredient_name)
+                    continue
+                try:
+                    new_item = PantryItem(
+                        user_id=current_user.id,
+                        ingredient_name=ingredient_name,
+                        quantity=quantity
+                    )
+                    db.add(new_item)
+                    db.commit()
+                    added.append(ingredient_name)
+                except IntegrityError:
+                    db.rollback()
+                    skipped.append(ingredient_name)
         
-        logger.info(f"User {current_user.id} bulk added {len(added)} ingredients, skipped {len(skipped)}, invalid {len(invalid_ingredients)}")
+        logger.info(f"User {current_user.id} bulk added {len(added)} ingredients, skipped {len(skipped)}")
         
         return {
             "message": "Bulk add completed",
             "added": added,
             "skipped": skipped,
-            "invalid": invalid_ingredients,
             "added_count": len(added),
-            "skipped_count": len(skipped),
-            "invalid_count": len(invalid_ingredients)
+            "skipped_count": len(skipped)
         }
         
     except HTTPException:

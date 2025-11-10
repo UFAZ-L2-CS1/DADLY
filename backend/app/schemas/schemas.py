@@ -106,16 +106,6 @@ class PantryItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
-    
-    @field_validator("ingredient_name")
-    @staticmethod
-    def validate_ingredient_name(v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Ingredient name cannot be empty")
-        if len(v) > 100:
-            raise ValueError("Ingredient name must not exceed 100 characters")
-        return v
 
 
 class AddIngredientRequest(BaseModel):
