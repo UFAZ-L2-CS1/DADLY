@@ -1,0 +1,65 @@
+services:
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dadly-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Database Configuration
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DATABASE_URL: mysql+pymysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:3306/${DB_NAME}
+      
+      # JWT Configuration
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS}
+      
+      # Application Configuration
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TIMEZONE: ${TIMEZONE:-Asia/Baku}
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
+    # Note: depends_on commented out to allow using external database
+    # Uncomment above if using the Docker MySQL container
+    networks:
+      - dadly-network
+    volumes:
+      # Mount source code for development (comment out for production)
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+
+  # Frontend (React + Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dadly-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - dadly-network
+    environment:
+      # API URLs for frontend to connect to backend
+      VITE_BASE_URL: ${VITE_BASE_URL:-http://localhost:8000}
+      VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:8000}
+
+networks:
+  dadly-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

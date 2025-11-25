@@ -6,12 +6,8 @@ __pycache__
 # Virtual environment
 .venv/
 
-# Docker files
-docker-compose.yml  
-
 # Requirements
 REQUIREMENTS.md
-
 
 # Script files
 fetch_spoonacular_recipes.py

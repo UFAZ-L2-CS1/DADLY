@@ -18,10 +18,28 @@ logger = get_logger(__name__)
 
 # Database URL - use SQLite for development, PostgreSQL for production
 # DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./dadly.db")
+
+# Get database configuration with defaults
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST', 'db')
+DB_PORT = os.getenv('DB_PORT', '3306')
+DB_NAME = os.getenv('DB_NAME')
+
+# Validate required environment variables
+if not DB_USER:
+    raise RuntimeError("DB_USER environment variable must be set")
+if not DB_PASSWORD:
+    raise RuntimeError("DB_PASSWORD environment variable must be set")
+if not DB_NAME:
+    raise RuntimeError("DB_NAME environment variable must be set")
+
 DATABASE_URL = (
-    f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@"
-    f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@"
+    f"{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
+
+logger.info(f"Connecting to database at {DB_HOST}:{DB_PORT}/{DB_NAME}")
 
 # Create engine
 engine = create_engine(DATABASE_URL)

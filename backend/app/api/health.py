@@ -3,7 +3,8 @@ from datetime import datetime
 
 from app.config.config import Config, get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
 
 router = APIRouter()
 

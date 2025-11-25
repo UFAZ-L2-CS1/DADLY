@@ -24,3 +24,5 @@ dist.zip
 *.sln
 *.sw?
 .env
+
+.github/
