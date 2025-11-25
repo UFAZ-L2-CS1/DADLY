@@ -1,106 +1,129 @@
-import { AuthInstance } from '../src/AxiosInstance'
+import { AuthInstance } from './AxiosInstance';
 
-const checkEmailExists = async (email) => {
+// ✅ Helper: attach token if it exists
+function getAuthHeader() {
+    const token = localStorage.getItem('access_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// ✅ Register a new user
+export async function registerUser(userData) {
     try {
-        const res = await AuthInstance.get(`/users?email=${email}`);
+        const response = await AuthInstance.post(
+            '/auth/register',
+            {
+                email: userData.email,
+                name: userData.name,
+                password: userData.password,
+                dietary_type: userData.dietaryType || 'none',
+                allergies: userData.allergies || null,
+            },
+            {
+                headers: getAuthHeader(),
+            }
+        );
 
-        if (res.data.length > 0) {
-            throw new Error("Bu e-poçt ünvanında hesab artıq mövcuddur");
-        }
-
-        return false;
+        console.log('User registered:', response.data);
+        return response.data;
     } catch (error) {
-        if (error.message === "Bu e-poçt ünvanında hesab artıq mövcuddur") {
-            throw error;
-        }
-        console.error("Error checking email:", error);
-        throw new Error("Email yoxlanılarkən xəta baş verdi");
-    }
-};
-
-async function signUp(user) {
-    try {
-        await checkEmailExists(user.email);
-
-        const newUser = await AuthInstance.post('/users', user);
-        return newUser;
-    } catch (error) {
-        console.error("Sign up error:", error.message);
+        console.error('Registration error:', error.response?.data || error.message);
         throw error;
     }
 }
 
-async function signIn({ email, password }) {
+// ✅ Login user
+export async function login(email, password) {
     try {
+        // Create URL-encoded form data
+        const formData = new URLSearchParams();
+        formData.append('username', email); // some APIs expect 'username' not 'email'
+        formData.append('password', password);
 
-        const res = await AuthInstance.get(`/users?email=${email}`);
+        const response = await AuthInstance.post(
+            '/auth/token',
+            formData, // Axios automatically handles this as the body
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+            }
+        );
 
-        if (res.data.length === 0) {
-            throw new Error("Belə bir hesab tapılmadı");
-        }
+        const data = response.data;
 
-        const user = res.data[0];
+        // Store tokens
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
 
-
-        if (user.password !== password) {
-            throw new Error("Şifrə yanlışdır");
-        }
-
-        return user;
+        console.log('Login successful');
+        return data;
     } catch (error) {
-        console.error("Sign in error:", error.message);
+        console.error('Login error:', error.response?.data || error.message);
         throw error;
     }
 }
- async function loadUser() {
+// Get current logged-in user
+export async function getCurrentUser() {
   try {
-    const stored = localStorage.getItem("user");
-    if (!stored) return null;
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) return null;
 
-    const { email } = JSON.parse(stored);
-    const res = await AuthInstance.get(`/users?email=${email}`);
+    const response = await AuthInstance.get('/auth/me', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    console.log(response.data);
 
-    return res.data;
-  } catch (err) {
-    console.error("Error loading user:", err);
-    throw err;
+    return response.data; // <-- must be the actual user object
+  } catch (error) {
+    console.error('Get current user failed:', error);
+    return null;
   }
 }
-//  async function updateWatchList(userId, newWatchList) {
-//   try {
-//     const res = await AuthInstance.patch(`/users/${userId}`, {
-//       watchList: newWatchList,
-//     });
+// Refresh access token
+export async function refreshAccessToken() {
+    try {
+        const response = await AuthInstance.post(
+            '/auth/refresh',
+            {}, // Axios needs a body, even if empty
+            {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('refresh_token')}`,
+                },
+            }
+        );
 
-//     return res.data;
-//   } catch (err) {
-//     console.error("Error updating watchlist:", err);
-//     throw err;
-//   }
-// }
-//  async function updateWatchHistory(userId, newWatchHistory) {
-//   try {
-//     const res = await AuthInstance.patch(`/users/${userId}`, {
-//       watchHistory: newWatchHistory,
-//     });
+        const data = response.data;
 
-//     return res.data;
-//   } catch (err) {
-//     console.error("Error updating watchhistory:", err);
-//     throw err;
-//   }
-// }
-//  async function updateRateHistory(userId, newRateHistory) {
-//   try {
-//     const res = await AuthInstance.patch(`/users/${userId}`, {
-//       rateHistory: newRateHistory,
-//     });
+        // Update localStorage with new access token
+        localStorage.setItem('access_token', data.access_token);
 
-//     return res.data;
-//   } catch (err) {
-//     console.error("Error updating ratehistory:", err);
-//     throw err;
-//   }
-// export { signUp, signIn ,loadUser,updateWatchList,updateWatchHistory,updateRateHistory}
+        return data;
+    } catch (error) {
+        console.error('Token refresh failed:', error.response?.data || error.message);
 
-export { signUp, signIn ,loadUser}
+        // Refresh token expired, clear storage and redirect
+        localStorage.clear();
+        window.location.href = '/login';
+    }
+}
+export async function logout() {
+    try {
+        await AuthInstance.post(
+            '/auth/logout',
+            {}, // Axios needs a body for POST, even if empty
+            {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+                },
+            }
+        );
+    } catch (error) {
+        console.error('Logout error:', error.response?.data || error.message);
+    } finally {
+        // Clear tokens and redirect regardless of API response
+        localStorage.clear();
+        window.location.href = '/login';
+    }
+}
