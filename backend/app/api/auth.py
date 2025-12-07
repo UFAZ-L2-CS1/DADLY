@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
-from fastapi import APIRouter, HTTPException, Depends, status
+from typing import Annotated, Optional
+from fastapi import APIRouter, HTTPException, Depends, status, Header
 import bcrypt
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -150,6 +150,59 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: db
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Could not validate user.")
+
+
+async def get_current_user_optional(
+    db: db_dependency,
+    authorization: Optional[str] = Header(None)
+) -> Optional[User]:
+    """
+    Get current user from access token, or None if not authenticated.
+    
+    Used for endpoints that support both authenticated and guest access.
+    Returns None instead of raising an exception when token is invalid or missing.
+    
+    Args:
+        authorization: Authorization header value (e.g., "Bearer <token>")
+        db: Database session
+        
+    Returns:
+        User object if authenticated, None for guest users
+    """
+    # If no authorization header, return None (guest user)
+    if not authorization:
+        return None
+    
+    # Extract token from "Bearer <token>" format
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            return None
+    except (ValueError, AttributeError):
+        return None
+    
+    # Check if token is blacklisted
+    if token in token_blacklist:
+        return None
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        user_id: int = payload.get("id")
+        token_type: str = payload.get("type")
+        
+        # Ensure it's an access token
+        if token_type != "access":
+            return None
+        
+        if email is None or user_id is None:
+            return None
+        
+        user = db.query(User).filter(User.email == email, User.id == user_id).first()
+        return user  # Could be None if user not found
+        
+    except JWTError:
+        return None  # Invalid token - treat as guest
 
 @router.get("/me", response_model=UserResponse, tags=["Authentication"])
 async def get_me(current_user: Annotated[User, Depends(get_current_user)]):

@@ -14,7 +14,7 @@ from app.schemas.schemas import RecipeResponse
 from app.db.database import db_dependency
 from app.models.models import Recipe, User, UserRecipeInteraction, PantryItem
 from app.config.config import get_logger
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, get_current_user_optional
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -40,23 +40,37 @@ def create_minimal_recipe_response(recipe: Recipe) -> dict:
 
 @router.get("/feed", tags=["Recipes"])
 async def get_recipe_feed(
-    current_user: Annotated[User, Depends(get_current_user)],
     db: db_dependency,
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)] = None,
     limit: int = Query(20, ge=1, le=50),
     exclude: Optional[str] = Query(None, description="Comma-separated recipe IDs to exclude (session-based)")
 ):
     """
     Get recipe feed for swiping interface
     
-    Returns recipes filtered by:
+    **Guest users (no authentication):**
+    - Returns random recipes
+    - No personalization
+    - Cannot use 'exclude' parameter
+    
+    **Authenticated users (with login):**
     - Excludes already liked recipes (permanent)
-    - Excludes session-excluded recipes (temporary)
+    - Excludes session-excluded recipes (temporary via 'exclude' parameter)
     - Prioritizes recipes matching user's pantry items if available
     
     Returns minimal recipe data for performance.
     Use GET /recipes/{id} for full details.
     """
     try:
+        # ===== GUEST USER PATH (no authentication) =====
+        if current_user is None:
+            # Simple random feed for guests - no personalization
+            recipes = db.query(Recipe).order_by(func.random()).limit(limit).all()
+            result = [create_minimal_recipe_response(recipe) for recipe in recipes]
+            logger.info(f"Returned {len(result)} random recipes for guest user")
+            return result
+        
+        # ===== AUTHENTICATED USER PATH (with login) ====
         # Get liked recipe IDs (permanent exclusion)
         liked_recipe_ids = db.query(UserRecipeInteraction.recipe_id).filter(
             UserRecipeInteraction.user_id == current_user.id,
@@ -134,7 +148,7 @@ async def get_recipe_feed(
             # Check if we have valid ingredients to match
             if not match_cases:
                 # No valid pantry items to match - return random recipes
-                recipes = query.order_by(func.rand()).limit(limit).all()
+                recipes = query.order_by(func.random()).limit(limit).all()
             else:
                 # Apply ingredient matching filter
                 if ingredient_conditions:
@@ -157,7 +171,7 @@ async def get_recipe_feed(
                 recipes = [result[0] for result in results]
         else:
             # No pantry items - return random recipes
-            recipes = query.order_by(func.rand()).limit(limit).all()
+            recipes = query.order_by(func.random()).limit(limit).all()
         
         # Convert to minimal response
         result = [create_minimal_recipe_response(recipe) for recipe in recipes]
