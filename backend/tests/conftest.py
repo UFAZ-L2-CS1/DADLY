@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.db.database import get_db
 from app.models.models import Base
+from app.api import auth  # Import auth module to access token_blacklist
 
 
 # Test database setup (SQLite in-memory for fast tests)
@@ -38,6 +39,15 @@ Base.metadata.create_all(bind=engine)
 
 # Override the database dependency
 app.dependency_overrides[get_db] = override_get_db
+
+
+@pytest.fixture(autouse=True)
+def clear_token_blacklist():
+    """Clear token blacklist before each test to ensure test isolation"""
+    auth.token_blacklist.clear()
+    yield
+    # Optionally clear after test as well
+    auth.token_blacklist.clear()
 
 
 @pytest.fixture(scope="function")
