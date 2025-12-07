@@ -1,0 +1,59 @@
+name: Continuous Delivery
+
+on:
+  push:
+    branches: ["main", "develop"]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    # Grant permissions to push to GHCR
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Determine tag prefix based on branch
+      - name: Set tag prefix
+        id: tag-prefix
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "prefix=latest" >> $GITHUB_OUTPUT
+            echo "sha_prefix=" >> $GITHUB_OUTPUT
+          else
+            echo "prefix=dev" >> $GITHUB_OUTPUT
+            echo "sha_prefix=dev-" >> $GITHUB_OUTPUT
+          fi
+      
+      # Build and push Backend image
+      - name: Build and push Backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/dadly-backend:${{ steps.tag-prefix.outputs.prefix }}
+            ghcr.io/${{ github.repository_owner }}/dadly-backend:${{ steps.tag-prefix.outputs.sha_prefix }}${{ github.sha }}
+      
+      # Build and push Frontend image
+      - name: Build and push Frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/dadly-frontend:${{ steps.tag-prefix.outputs.prefix }}
+            ghcr.io/${{ github.repository_owner }}/dadly-frontend:${{ steps.tag-prefix.outputs.sha_prefix }}${{ github.sha }}
