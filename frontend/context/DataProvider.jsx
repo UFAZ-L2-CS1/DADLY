@@ -1,9 +1,8 @@
-import { createContext, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import DataContext from './DataContext';
 import { getCurrentUser as loadUser } from '../service/AuthService';
 
-export const dataCntxt = createContext();
-
-const DataContext = ({ children }) => {
+const DataProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -12,7 +11,7 @@ const DataContext = ({ children }) => {
       setLoading(true);
       try {
         const user = await loadUser();
-        setCurrentUser(user || null); // user should now be the object
+        setCurrentUser(user || null);
       } catch (err) {
         console.error('Failed to load user:', err);
         setCurrentUser(null);
@@ -25,10 +24,10 @@ const DataContext = ({ children }) => {
   }, []);
 
   return (
-    <dataCntxt.Provider value={{ currentUser, setCurrentUser, loading }}>
+    <DataContext.Provider value={{ currentUser, setCurrentUser, loading }}>
       {children}
-    </dataCntxt.Provider>
+    </DataContext.Provider>
   );
 };
 
-export default DataContext;
+export default DataProvider;

@@ -1,48 +1,74 @@
+import { AxiosInstance } from './AxiosInstance';
 
-import {AxiosInstance} from './AxiosInstance';
+const authHeaders = () => {
+  const token = localStorage.getItem('access_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
-export async function getMenuData() {
-    try {
-        const res = await AxiosInstance.get('/menu');
-        return res.data;
-    } catch (err) {
-        console.error('Error fetching menu:', err);
-        throw err;
-    }
-}
-export async function getMoreExploreData() {
-    try {
-        const res = await AxiosInstance.get('/moreExplore');
-        return res.data;
-    } catch (err) {
-        console.error('Error fetching menu:', err);
-        throw err;
-    }
-}
-export async function getSwiperData() {
-    try {
-        const res = await AxiosInstance.get('/swiper');
-        return res.data;
-    } catch (err) {
-        console.error('Error fetching swiper:', err);
-        throw err;
-    }
-}
-export async function getMovieData() {
-    try {
-        const res = await AxiosInstance.get('/topFilms');
-        return res.data;
-    } catch (err) {
-        console.error('Error fetching swiper:', err);
-        throw err;
-    }
-}
-export async function updateMovie(movieId, trailerDuration) {
+export async function fetchRecipeFeed(limit = 20, exclude = []) {
   try {
-    const res = await AxiosInstance.patch(`/topFilms/${movieId}`, { trailerDuration });
-    return res.data;
+    const params = { limit };
+    if (exclude.length) {
+      params.exclude = exclude.join(',');
+    }
+    const response = await AxiosInstance.get('/recipes/feed', {
+      params,
+      headers: authHeaders(),
+    });
+    return response.data;
   } catch (err) {
-    console.error("Error updating movie duration:", err);
+    console.error('Error fetching recipe feed:', err);
+    throw err;
+  }
+}
+
+export async function fetchRecipeDetails(recipeId) {
+  try {
+    const response = await AxiosInstance.get(`/recipes/${recipeId}`, {
+      headers: authHeaders(),
+    });
+    return response.data;
+  } catch (err) {
+    console.error(`Error fetching recipe ${recipeId}:`, err);
+    throw err;
+  }
+}
+
+export async function fetchLikedRecipes(limit = 100) {
+  try {
+    const response = await AxiosInstance.get('/recipes/liked', {
+      params: { limit },
+      headers: authHeaders(),
+    });
+    return response.data;
+  } catch (err) {
+    console.error('Error fetching liked recipes:', err);
+    throw err;
+  }
+}
+
+export async function likeRecipe(recipeId) {
+  try {
+    const response = await AxiosInstance.post(
+      `/recipes/${recipeId}/like`,
+      {},
+      { headers: authHeaders() }
+    );
+    return response.data;
+  } catch (err) {
+    console.error(`Error liking recipe ${recipeId}:`, err);
+    throw err;
+  }
+}
+
+export async function unlikeRecipe(recipeId) {
+  try {
+    const response = await AxiosInstance.delete(`/recipes/${recipeId}/like`, {
+      headers: authHeaders(),
+    });
+    return response.data;
+  } catch (err) {
+    console.error(`Error unliking recipe ${recipeId}:`, err);
     throw err;
   }
 }

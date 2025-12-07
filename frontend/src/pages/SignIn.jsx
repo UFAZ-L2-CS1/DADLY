@@ -1,7 +1,7 @@
 import logoDadly from '../assets/logoDadly.png';
 import React, { useState } from "react";
 import { Link, useNavigate } from 'react-router-dom';
-import { login } from '../../service/AuthService.js'; // your AuthService login function
+import { login, getLikedUser } from '../../service/AuthService.js'; // your AuthService login function
 
 export default function SignIn() {
   const [formData, setFormData] = useState({
@@ -46,7 +46,7 @@ export default function SignIn() {
     try {
       // Call AuthService login function
       const data = await login(formData.email, formData.password);
-
+      const likeds=await getLikedUser()
       if (data) {
         // Save tokens in localStorage
         localStorage.setItem('access_token', data.access_token);
@@ -59,6 +59,7 @@ export default function SignIn() {
         );
 
         console.log("Uğurla daxil oldunuz!");
+        console.log(likeds)
         navigate('/');
       }
     } catch (error) {
@@ -138,7 +139,7 @@ export default function SignIn() {
             <p className="text-sm text-[#00000080] absolute bg-white px-2">New to DADLY?</p>
           </div>
 
-          <Link to='/register'>
+          <Link to='/auth/register'>
             <button className="w-full border border-gray-400 rounded-full cursor-pointer py-2 hover:bg-gray-100">
               Create your DADLY account
             </button>

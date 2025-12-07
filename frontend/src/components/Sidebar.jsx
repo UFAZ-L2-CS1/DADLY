@@ -1,116 +1,194 @@
-import { useRef, useState, useContext } from "react";
-import { dataCntxt } from "../../context/DataContext";
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState, useContext } from "react";
+import { ChevronDown, X } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { BsFillStarFill } from "react-icons/bs";
+import { PiListHeartBold } from "react-icons/pi";
+import { NAV_SECTIONS } from "../constants/navigation";
+import DataContext from "../../context/DataContext";
 
-const Sidebar = () => {
-    const sideRef = useRef(null);
-    const [isOpen, setIsOpen] = useState(false);
-    const { menuData } = useContext(dataCntxt);
-    const [expandedSections, setExpandedSections] = useState({});
+const Sidebar = ({ isOpen, onClose }) => {
+  const location = useLocation();
+  const sideRef = useRef(null);
+  const prevPathRef = useRef(location.pathname);
+  const [expandedSections, setExpandedSections] = useState({});
+  const { currentUser } = useContext(DataContext);
 
-    const toggleSection = (sectionId) => {
-        setExpandedSections(prev => ({
-            ...prev, // FIXED — keep previous sections
-            [sectionId]: !prev[sectionId]
-        }));
+  const toggleSection = (sectionId) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [sectionId]: !prev[sectionId],
+    }));
+  };
+
+  // Close sidebar on escape key
+  useEffect(() => {
+    if (!isOpen) {
+      setExpandedSections({});
+      return;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
     };
 
-    return (
-        <div>
-            {/* Mobile toggle button */}
-            <button
-                onClick={() => setIsOpen(true)}
-                className="text-white lg:hidden hover:bg-[#313131] px-4 py-3 cursor-pointer rounded-4xl tracking-[1.25rem] min-h-[3rem] min-w-[3rem]"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
-                    <path fill="none" d="M0 0h24v24H0V0z" />
-                    <path d="M4 18h16c.55 0 1-.45 1-1s-.45-1-1-1H4c-.55 0-1 .45-1 1s.45 1 1 1zm0-5h16c.55 0 1-.45 1-1s-.45-1-1-1H4c-.55 0-1 .45-1 1s.45 1 1 1zM3 7c0 .55.45 1 1 1h16c.55 0 1-.45 1-1s-.45-1-1-1H4c-.55 0-1 .45-1 1z" />
-                </svg>
-            </button>
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
-            {isOpen && (
-                <div
-                    className="fixed top-0 left-0 w-screen h-screen z-100"
-                    onClick={() => setIsOpen(false)}
-                >
-                    <div
-                        ref={sideRef}
-                        className="bg-[#1f1f1f] h-screen overflow-y-auto relative w-[280px] flex flex-col"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Close button */}
-                        <div
-                            onClick={() => setIsOpen(false)}
-                            className="cursor-pointer p-2 my-4 mx-2 hover:bg-[#313131] w-fit rounded-4xl text-white absolute right-0"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
-                                <path fill="none" d="M0 0h24v24H0V0z" />
-                                <path d="M18.3 5.71a.996.996 0 0 0-1.41 0L12 10.59 7.11 5.7A.996.996 0 1 0 5.7 7.11L10.59 12 5.7 16.89a.996.996 0 1 0 1.41 1.41L12 13.41l4.89 4.89a.996.996 0 1 0 1.41-1.41L13.41 12l4.89-4.89a.996.996 0 0 0 0-1.4z" />
-                            </svg>
-                        </div>
+  // Close sidebar on route change
+  useEffect(() => {
+    const hasPathChanged = prevPathRef.current !== location.pathname;
+    if (hasPathChanged && isOpen) {
+      onClose();
+    }
+    prevPathRef.current = location.pathname;
+  }, [location.pathname, isOpen, onClose]);
 
-                        {/* Menu */}
-                        <div className="text-white pt-4 mt-10 clear-both cursor-pointer">
-                            {menuData?.map((section) => {
-                                const isExpanded = expandedSections[section.id];
+  if (!isOpen) return null;
 
-                                return (
-                                    <div key={section.id}>
-                                        <button
-                                            onClick={() => toggleSection(section.id)}
-                                            className="w-full flex items-center justify-between pr-4 group transition cursor-pointer duration-200 hover:bg-[#313131]"
-                                        >
-                                            <img
-                                                src={section.icon}
-                                                alt={`${section.name} icon`}
-                                                className={`w-6 h-6 transition m-3 ${
-                                                    isExpanded
-                                                        ? "white-to-yellow"
-                                                        : "invert opacity-50 group-hover:opacity-100"
-                                                }`}
-                                            />
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] lg:hidden transition-opacity duration-300 ${
+          isOpen ? 'opacity-100' : 'opacity-0'
+        }`}
+        onClick={onClose}
+      />
 
-                                            <span
-                                                className={`flex-1 text-left text-md transition-colors ${
-                                                    isExpanded
-                                                        ? "text-amber-400"
-                                                        : "group-hover:text-white text-white"
-                                                }`}
-                                            >
-                                                {section.name}
-                                            </span>
-
-                                            {section.items?.length > 0 && (
-                                                isExpanded
-                                                    ? <ChevronUp size={18} className="text-white" />
-                                                    : <ChevronDown size={18} className="opacity-50 group-hover:opacity-100" />
-                                            )}
-                                        </button>
-
-                                        {isExpanded && section.items?.length > 0 && (
-                                            <div className="border-b border-gray-700">
-                                                {section.items.map((item, index) => (
-                                                    <Link
-                                                        key={index}
-                                                        to={item.url}
-                                                        onClick={() => setIsOpen(false)}
-                                                        className="block pl-12 pr-4 py-2 text-md hover:text-white hover:bg-[#313131]"
-                                                    >
-                                                        {item.name}
-                                                    </Link>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
-            )}
+      {/* Sidebar */}
+      <aside
+        ref={sideRef}
+        className={`fixed left-0 top-0 h-full w-[280px] bg-white shadow-2xl z-[101] lg:hidden transform transition-transform duration-300 ease-out ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+          <h2 className="text-xl font-bold text-[#E64C15]">Menu</h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-orange-50 transition-colors text-gray-600 hover:text-[#E64C15]"
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
         </div>
-    );
+
+        {/* Navigation */}
+        <nav className="overflow-y-auto h-[calc(100%-73px)]">
+          <div className="py-2">
+            {/* Rate Us & Favourites Section */}
+            <div className="border-b border-gray-100 pb-2 mb-2">
+              {/* Rate Us */}
+              {currentUser ? (
+                <button className='w-full flex items-center gap-3 px-6 py-4 text-gray-700 hover:text-[#E64C15] hover:bg-orange-50 transition-colors group'>
+                  <BsFillStarFill size={20} className="text-gray-400 group-hover:text-[#E64C15] transition-colors" />
+                  <span className="font-medium">Rate Us</span>
+                </button>
+              ) : (
+                <Link 
+                  to='/auth/token' 
+                  className='w-full flex items-center gap-3 px-6 py-4 text-gray-700 hover:text-[#E64C15] hover:bg-orange-50 transition-colors group'
+                >
+                  <BsFillStarFill size={20} className="text-gray-400 group-hover:text-[#E64C15] transition-colors" />
+                  <span className="font-medium">Rate Us</span>
+                </Link>
+              )}
+
+              {/* Favourites */}
+              <Link
+                to={currentUser ? `/user/${currentUser?.id}/favourites` : '/auth/token'}
+                className='w-full flex items-center justify-between px-6 py-4 text-gray-700 hover:text-[#E64C15] hover:bg-orange-50 transition-colors group'
+              >
+                <div className="flex items-center gap-3">
+                  <PiListHeartBold size={20} className="text-gray-400 group-hover:text-[#E64C15] transition-colors" />
+                  <span className="font-medium">Favourites</span>
+                </div>
+              </Link>
+            </div>
+
+            {/* Main Navigation Sections */}
+            {NAV_SECTIONS.map((section) => {
+              const isExpanded = expandedSections[section.id];
+              const Icon = section.icon;
+              const hasItems = section.items && section.items.length > 0;
+
+              return (
+                <div key={section.id} className="border-b border-gray-50">
+                  {hasItems ? (
+                    <>
+                      <button
+                        onClick={() => toggleSection(section.id)}
+                        className="w-full flex items-center justify-between px-6 py-4 hover:bg-orange-50 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon
+                            size={20}
+                            className={`transition-colors ${
+                              isExpanded ? "text-[#E64C15]" : "text-gray-400 group-hover:text-[#E64C15]"
+                            }`}
+                          />
+                          <span
+                            className={`font-medium transition-colors ${
+                              isExpanded ? "text-[#E64C15]" : "text-gray-700 group-hover:text-[#E64C15]"
+                            }`}
+                          >
+                            {section.label}
+                          </span>
+                        </div>
+
+                        <div className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                          <ChevronDown 
+                            size={18} 
+                            className={isExpanded ? "text-[#E64C15]" : "text-gray-400 group-hover:text-[#E64C15]"}
+                          />
+                        </div>
+                      </button>
+
+                      {/* Dropdown Items */}
+                      <div
+                        className={`bg-gray-50 overflow-hidden transition-all duration-300 ${
+                          isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                        }`}
+                      >
+                        {section.items.map((item) => (
+                          <Link
+                            key={item.name}
+                            to={item.url}
+                            className="block pl-14 pr-6 py-3 text-sm text-gray-600 hover:text-[#E64C15] hover:bg-orange-50 transition-colors"
+                          >
+                            {item.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <Link
+                      to={section.href}
+                      className="w-full flex items-center px-6 py-4 hover:bg-orange-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon
+                          size={20}
+                          className="text-gray-400 group-hover:text-[#E64C15] transition-colors"
+                        />
+                        <span className="font-medium text-gray-700 group-hover:text-[#E64C15] transition-colors">
+                          {section.label}
+                        </span>
+                      </div>
+                    </Link>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </nav>
+      </aside>
+    </>
+  );
 };
 
 export default Sidebar;
