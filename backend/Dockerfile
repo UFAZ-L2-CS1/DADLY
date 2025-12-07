@@ -2,11 +2,14 @@
 FROM python:3.13-slim-bookworm AS builder
 
 # Install system dependencies required for Python packages
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     gcc \
-    default-libmysqlclient-dev \
+    libmariadb3 \
+    libmariadb-dev \
     pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -23,9 +26,12 @@ RUN uv venv && uv sync --frozen --no-cache --no-dev
 FROM python:3.13-slim-bookworm
 
 # Install runtime dependencies for MySQL client
-RUN apt-get update && apt-get install -y \
-    default-libmysqlclient-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libmariadb3 \
+    libmariadb-dev \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
