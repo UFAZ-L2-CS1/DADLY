@@ -9,21 +9,7 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    env:
-      # Database Configuration
-      DB_HOST: ${{ secrets.DB_HOST }}
-      DB_PORT: ${{ secrets.DB_PORT }}
-      DB_USER: ${{ secrets.DB_USER }}
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      DB_NAME: ${{ secrets.DB_NAME }}
-      # JWT Configuration
-      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-      JWT_ALGORITHM: ${{ secrets.JWT_ALGORITHM }}
-      ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
-      REFRESH_TOKEN_EXPIRE_DAYS: ${{ secrets.REFRESH_TOKEN_EXPIRE_DAYS }}
-      # Application Configuration
-      LOG_LEVEL: INFO
-      TIMEZONE: Asia/Baku
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -42,6 +28,21 @@ jobs:
           uv sync
       
       - name: Run tests
+        working-directory: backend
+        env:
+          # Database Configuration (tests use SQLite, not MySQL)
+          DB_HOST: localhost
+          DB_PORT: 3306
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+          DB_NAME: test_db
+          # JWT Configuration (required by config.py)
+          JWT_SECRET_KEY: test-secret-key-for-ci-only-not-for-production
+          JWT_ALGORITHM: HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES: 30
+          REFRESH_TOKEN_EXPIRE_DAYS: 7
+          # Application Configuration
+          LOG_LEVEL: INFO
+          TIMEZONE: Asia/Baku
         run: |
-          cd backend
-          uv run pytest tests/
+          uv run pytest tests/ -v --tb=short
