@@ -13,8 +13,10 @@ backend/.venv/
 .vscode/
 .idea/
 
-.github/
+.github/copilot*
+
 .env
 
 frontend/.github/
+
 
