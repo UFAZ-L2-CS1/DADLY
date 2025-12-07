@@ -1,24 +1,26 @@
 import React, { useContext, useEffect, useState, useRef } from 'react';
-import logo from './../assets/logoDadly.png';
-import { dataCntxt } from '../../context/DataContext';
+import DataContext from '../../context/DataContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { BsFillStarFill } from "react-icons/bs";
 import { PiListHeartBold } from "react-icons/pi";
 import { CgProfile } from "react-icons/cg";
 import { HiMenuAlt1 } from "react-icons/hi";
 import { FaSearch } from "react-icons/fa";
-import Sidebar from './Sidebar';
 import { RiArrowDropDownLine } from "react-icons/ri";
+import Sidebar from './Sidebar';
+import { NAV_SECTIONS } from '../constants/navigation';
+
 const Navbar = () => {
   const [openSidebar, setOpenSidebar] = useState(false);
   const [userDropdown, setUserDropdown] = useState(false);
-  const selectorRef = useRef(null);
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [searchValue, setSearchValue] = useState('');
+  
+  const userDropdownRef = useRef(null);
+  const navDropdownRef = useRef(null);
   const navigate = useNavigate();
-  const [placeholder, setPlaceholder] = useState(true);
-  const { currentUser, setCurrentUser } = useContext(dataCntxt);
-
-  // Toggle user dropdown menu
-  const handleUserDropdown = () => setUserDropdown(prev => !prev);
+  
+  const { currentUser, setCurrentUser } = useContext(DataContext);
 
   // Sign out function
   const handleSignOut = () => {
@@ -28,150 +30,260 @@ const Navbar = () => {
     navigate('/');
   };
 
-  // Close dropdown if clicking outside
+  // Close user dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (selectorRef.current && !selectorRef.current.contains(e.target)) {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(e.target)) {
         setUserDropdown(false);
       }
+      if (navDropdownRef.current && !navDropdownRef.current.contains(e.target)) {
+        setActiveDropdown(null);
+      }
     };
+    
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-
   return (
-    <section className=' border-b-[0.5px] border-[#ecdacb] fixed w-full z-50'>
-      <nav className='flex flex-col justify-between items-center '>
-        <div className=' w-full  py-5 border-b-[0.5px] border-[#ecdacb]'>
-          <div className='px-5 max-w-[1400px] mx-auto flex relative'>
-            <div className='px-5 '>
+    <>
+      <header className='fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 shadow-sm'>
+        {/* Top Bar */}
+        <div className='border-b border-gray-100'>
+          <div className='max-w-[1400px] mx-auto px-5'>
+            <div className='flex items-center justify-between h-20'>
+              {/* Mobile Menu Button */}
               <button
-                className='lg:hidden stack-sans-text text-2xl  cursor-pointer  py-2 rounded-full flex items-center gap-2 hover:text-[#DF4B2D] hover:border-[#DF4B2D]  transition'
-                onClick={() => setOpenSidebar(!openSidebar)}
+                className='lg:hidden p-2 -ml-2 text-gray-600 hover:text-[#E64C15] hover:bg-orange-50 rounded-lg transition-all'
+                onClick={() => setOpenSidebar(true)}
+                aria-label='Open menu'
               >
-                <HiMenuAlt1 />
+                <HiMenuAlt1 size={24} />
               </button>
-              {openSidebar && <Sidebar />}
-            </div>
-            <Link to="/" className='px-5 w-full flex items-center justify-center text-[#E64C15] text-4xl lilita-one-regular '>
-              DADLY
-            </Link>
 
-            <div className='flex  tracking-wide text-[#00001381]  gap-2 absolute right-0 items-center'>
-              {/* Rate Us Button */}
-              {currentUser ? (
-                <button
-                  className='  px-4 text-sm py-2 rounded-full flex items-center gap-2 hover:text-[#DF4B2D] hover:border-[#DF4B2D]  transition'
-                >
-                  <BsFillStarFill /> Rate Us
-                </button>
-              ) : (
-                <Link
-                  to='/token'
-                  className=' px-4 text-sm py-2 rounded-full flex items-center gap-2 hover:text-[#DF4B2D] hover:border-[#DF4B2D]  transition'
-                >
-                  <BsFillStarFill /> Rate Us
-                </Link>
-              )}
-
-              {/* Favourites */}
-              <Link
-                to={currentUser ? `/user/${currentUser?.id}/watchList` : '/token'}
-                className=' px-4 text-sm py-2 rounded-full flex items-center gap-2 hover:text-[#DF4B2D] hover:border-[#DF4B2D]  transition'
+              {/* Logo */}
+              <Link 
+                to="/" 
+                className='absolute left-1/2 -translate-x-1/2 lg:relative lg:left-0 lg:translate-x-0 text-[#E64C15] text-3xl lg:text-4xl font-bold lilita-one-regular hover:opacity-80 transition-opacity'
               >
-                <PiListHeartBold className='text-[20px]' />
-                Favourites
-                {currentUser?.watchList?.length > 0 && (
-                  <span className='px-2 bg-[#EB7A30] text-white rounded-full text-[0.7rem]'>{currentUser.watchList.length}</span>
-                )}
+                DADLY
               </Link>
 
-              {/* Profile */}
-              {!currentUser ? (
-                <Link
-                  to='/token'
-                  className=' px-4 text-sm py-2 rounded-full flex items-center gap-2 hover:text-[#DF4B2D] hover:border-[#DF4B2D]  transition'
-                >
-                  <CgProfile className='text-[20px]' /> Sign in/Sign up
-                </Link>
-              ) : (
-                <div ref={selectorRef} className='relative'>
-                  <button
-                    onClick={handleUserDropdown}
-                    className='flex gap-2  rounded-full px-4 py-1 hover:bg-white/10 cursor-pointer  text-[#EB7A30]'
-                  >
-                    <CgProfile className='text-[20px]' /> {currentUser?.name}
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      className={`${userDropdown ? 'rotate-180' : ''} transition-all duration-200`}
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path fill="none" d="M0 0h24v24H0V0z"></path>
-                      <path d="M8.71 11.71l2.59 2.59c.39.39 1.02.39 1.41 0l2.59-2.59c.63-.63.18-1.71-.71-1.71H9.41c-.89 0-1.33 1.08-.7 1.71z"></path>
-                    </svg>
+              {/* Right Actions - Desktop Only */}
+              <div className='hidden lg:flex items-center gap-1'>
+                {/* Rate Us */}
+                {currentUser ? (
+                  <button className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#E64C15] hover:bg-orange-50 rounded-lg transition-all'>
+                    <BsFillStarFill size={16} />
+                    <span>Rate Us</span>
                   </button>
+                ) : (
+                  <Link 
+                    to='/auth/token' 
+                    className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#E64C15] hover:bg-orange-50 rounded-lg transition-all'
+                  >
+                    <BsFillStarFill size={16} />
+                    <span>Rate Us</span>
+                  </Link>
+                )}
 
-                  {userDropdown && (
-                    <div className='bg-[#121212] border-1 rounded-sm border-[#ffffff1a] z-40 right-0 py-2 absolute text-white flex top-11 text-lg w-55 flex-col'>
-                      <Link className='px-8 py-2 hover:bg-white/10' to={`/user/${currentUser?.id}/watchList`}>Your Favourites</Link>
-                      <Link className='px-8 py-2 hover:bg-white/10' to={`/user/${currentUser?.id}/watchHistory`}>Your Watch History</Link>
-                      <Link className='px-8 py-2 hover:bg-white/10' to={`/user/${currentUser?.id}/rateHistory`}>Your Ratings</Link>
-                      <span className='px-8 py-2 hover:bg-white/10 cursor-pointer' onClick={handleSignOut}>Sign out</span>
-                    </div>
-                  )}
-                </div>
-              )}
+                {/* Favourites */}
+                <Link
+                  to={currentUser ? `/user/${currentUser?.id}/favourites` : '/auth/token'}
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#E64C15] hover:bg-orange-50 rounded-lg transition-all relative'
+                >
+                  <PiListHeartBold size={20} />
+                  <span>Favourites</span>
+                </Link>
+
+                {/* Profile / Sign In - Desktop */}
+                {!currentUser ? (
+                  <Link
+                    to='/auth/token'
+                    className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#E64C15] hover:bg-[#d43f0f] rounded-lg transition-all'
+                  >
+                    <CgProfile size={20} />
+                    <span>Sign In</span>
+                  </Link>
+                ) : (
+                  <div ref={userDropdownRef} className='relative'>
+                    <button
+                      onClick={() => setUserDropdown(!userDropdown)}
+                      className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#E64C15] hover:bg-orange-50 rounded-lg transition-all'
+                    >
+                      <CgProfile size={20} />
+                      <span className='max-w-[100px] truncate'>{currentUser?.name}</span>
+                      <RiArrowDropDownLine 
+                        size={20} 
+                        className={`transition-transform duration-200 ${userDropdown ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+
+                    {/* User Dropdown Menu */}
+                    {userDropdown && (
+                      <div className='absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200'>
+                        <Link 
+                          className='block px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] transition-colors' 
+                          to={`/user/${currentUser?.id}/favourites`}
+                          onClick={() => setUserDropdown(false)}
+                        >
+                          Your Favourites
+                        </Link>
+                       
+                        <Link 
+                          className='block px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] transition-colors' 
+                          to={`/user/${currentUser?.id}/rateHistory`}
+                          onClick={() => setUserDropdown(false)}
+                        >
+                          Your Ratings
+                        </Link>
+                        <hr className='my-2 border-gray-100' />
+                        <button 
+                          className='block w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors' 
+                          onClick={handleSignOut}
+                        >
+                          Sign Out
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Profile Button - Mobile Only */}
+              <div className='lg:hidden'>
+                {!currentUser ? (
+                 <Link
+                    to='/auth/token'
+                    className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#E64C15] hover:bg-[#d43f0f] rounded-lg transition-all'
+                  >
+                    <CgProfile size={20} />
+                    <span className='hidden sm:inline'>Sign In</span>
+                  </Link>
+                ) : (
+                  <div ref={userDropdownRef} className='relative'>
+                    <button
+                      onClick={() => setUserDropdown(!userDropdown)}
+                      className='flex items-center gap-1 px-3 py-2 text-sm font-medium text-[#E64C15] hover:bg-orange-50 rounded-lg transition-all'
+                    >
+                      <CgProfile size={20} />
+                      <RiArrowDropDownLine 
+                        size={20} 
+                        className={`transition-transform duration-200 ${userDropdown ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+
+                    {/* User Dropdown Menu - Mobile */}
+                    {userDropdown && (
+                      <div className='absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200'>
+                        <Link 
+                          className='block px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] transition-colors' 
+                          to={`/user/${currentUser?.id}/favourites`}
+                          onClick={() => setUserDropdown(false)}
+                        >
+                          Your Favourites
+                        </Link>
+                        <Link 
+                          className='block px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] transition-colors' 
+                          to={`/user/${currentUser?.id}/rateHistory`}
+                          onClick={() => setUserDropdown(false)}
+                        >
+                          Your Ratings
+                        </Link>
+                        <hr className='my-2 border-gray-100' />
+                        <button 
+                          className='block w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors' 
+                          onClick={handleSignOut}
+                        >
+                          Sign Out
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
+        {/* Bottom Bar - Navigation & Search */}
+        <div className='bg-white'>
+          <div className='max-w-[1400px] mx-auto px-5'>
+            <div className='flex items-center justify-between gap-4 py-3'>
+              {/* Desktop Navigation */}
+              <nav className='hidden lg:flex gap-2 items-center' ref={navDropdownRef}>
+                {NAV_SECTIONS.map((section) => {
+                  const hasItems = section.items && section.items.length > 0;
+                  const isActive = activeDropdown === section.id;
 
+                  return (
+                    <div key={section.id} className='relative'>
+                      {hasItems ? (
+                        <button
+                          onClick={() => setActiveDropdown(isActive ? null : section.id)}
+                          className={`flex items-center gap-1 px-4 py-3 text-sm font-medium transition-all border-b-2 ${
+                            isActive 
+                              ? 'text-[#E64C15] border-[#E64C15]' 
+                              : 'text-gray-600 border-transparent hover:text-[#E64C15] hover:border-[#E64C15]'
+                          }`}
+                        >
+                          {section.label}
+                          <RiArrowDropDownLine 
+                            size={20} 
+                            className={`transition-transform duration-200 ${isActive ? 'rotate-180' : ''}`}
+                          />
+                        </button>
+                      ) : (
+                        <Link
+                          to={section.href}
+                          className='flex items-center gap-1 px-4 py-3 text-sm font-medium text-gray-600 hover:text-[#E64C15] border-b-2 border-transparent hover:border-[#E64C15] transition-all'
+                        >
+                          {section.label}
+                        </Link>
+                      )}
 
-        <div className='flex items-center justify-between max-w-[1400px] mx-auto stack-sans-text text-sm  tracking-wider text-[#535353] gap-2'>
-          <ul className='hidden lg:flex'>
-            <li className='hover:text-[#DF4B2D] py-8 px-4 flex items-center justify-center border-b-2 border-transparent hover:border-[#DF4B2D]  transition-all'>
-              <Link to="/">Meal Game</Link>
-              <RiArrowDropDownLine className='text-2xl' />
-            </li>
-            <li className='hover:text-[#DF4B2D] py-8 px-4 flex items-center justify-center border-b-2 border-transparent hover:border-[#DF4B2D]  transition-all'>
-              <Link to="/about">Recipes</Link>
-              <RiArrowDropDownLine className='text-2xl' />
-            </li>
-            <li className='hover:text-[#DF4B2D] py-8 px-4 flex items-center justify-center border-b-2 border-transparent hover:border-[#DF4B2D]  transition-all'>
-              <Link to="/contact">Diet Plans</Link>
-              <RiArrowDropDownLine className='text-2xl' />
-            </li>
-            <li className='hover:text-[#DF4B2D] py-8 px-4 flex items-center justify-center border-b-2 border-transparent hover:border-[#DF4B2D]  transition-all'>
-              <Link to="/about-us">About Us</Link>
-              <RiArrowDropDownLine className='text-2xl' />
-            </li>
-          </ul>
-          <div className="relative">
-            <style jsx>{`
-    .search-input::placeholder {
-      color: ${placeholder ? '#00001342' : 'white'};
-      transition: all 0.2s;
-    }
-  `}</style>
-            <input
-              type="text"
-              onInput={() => setPlaceholder(false)}
-              placeholder='Search for "pasta"'
-              className="search-input outline-none font-light w-full pl-8 focus:border-[#DF4B2D] border-2 p-2 h-full"
-            />
-            <FaSearch className="absolute left-2 top-1/2 -translate-y-1/2" />
+                      {/* Desktop Dropdown */}
+                      {isActive && hasItems && (
+                        <div className='absolute top-full  left-0 mt-5 min-w-[220px] bg-white rounded-b-lg shadow-lg border border-gray-100 border-t-0 py-2 animate-in fade-in slide-in-from-top-2 duration-200'>
+                          {section.items.map((item) => (
+                            <Link
+                              key={item.name}
+                              to={item.url}
+                              className='block px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] transition-colors'
+                              onClick={() => setActiveDropdown(null)}
+                            >
+                              {item.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </nav>
+
+              {/* Search Bar */}
+              <div className='relative flex-1 lg:max-w-sm'>
+                <input
+                  type="text"
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  placeholder='Search for "pasta"'
+                  className='w-full pl-10 pr-4 py-2 text-sm border-2 border-gray-200 rounded-lg outline-none focus:border-[#E64C15] transition-colors placeholder:text-gray-400'
+                />
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              </div>
+            </div>
           </div>
-
         </div>
-        
+      </header>
 
-      </nav>
-    
-    </section>
+      {/* Spacer to prevent content from going under fixed navbar */}
+      <div className='h-[140px]' />
+
+      {/* Sidebar */}
+      <Sidebar isOpen={openSidebar} onClose={() => setOpenSidebar(false)} />
+    </>
   );
 };
 

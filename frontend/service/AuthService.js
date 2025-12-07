@@ -10,7 +10,7 @@ function getAuthHeader() {
 export async function registerUser(userData) {
     try {
         const response = await AuthInstance.post(
-            '/auth/register',
+            '/register',
             {
                 email: userData.email,
                 name: userData.name,
@@ -40,7 +40,7 @@ export async function login(email, password) {
         formData.append('password', password);
 
         const response = await AuthInstance.post(
-            '/auth/token',
+            '/token',
             formData, // Axios automatically handles this as the body
             {
                 headers: {
@@ -68,7 +68,7 @@ export async function getCurrentUser() {
     const accessToken = localStorage.getItem('access_token');
     if (!accessToken) return null;
 
-    const response = await AuthInstance.get('/auth/me', {
+    const response = await AuthInstance.get('/me', {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -81,11 +81,31 @@ export async function getCurrentUser() {
     return null;
   }
 }
+// Get current logged-in user
+export async function getLikedUser() {
+  try {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) return null;
+
+    const response = await AuthInstance.get('/recipes/liked', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    console.log(response.data);
+
+    return response.data; // <-- must be the actual user object
+
+  } catch (error) {
+    console.error('Get current user failed:', error);
+    return null;
+  }
+}
 // Refresh access token
 export async function refreshAccessToken() {
     try {
         const response = await AuthInstance.post(
-            '/auth/refresh',
+            '/refresh',
             {}, // Axios needs a body, even if empty
             {
                 headers: {
@@ -111,7 +131,7 @@ export async function refreshAccessToken() {
 export async function logout() {
     try {
         await AuthInstance.post(
-            '/auth/logout',
+            '/logout',
             {}, // Axios needs a body for POST, even if empty
             {
                 headers: {

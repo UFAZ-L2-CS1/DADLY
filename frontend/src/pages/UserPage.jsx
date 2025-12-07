@@ -1,47 +1,144 @@
-import React from 'react'
-import UserList from '../src/Components/UserList'
-import UserMore from '../src/Components/UserMore'
-import { useParams } from 'react-router-dom'
-import { dataCntxt } from '../context/DataContext'
-import { useContext } from 'react'
+import React, { useContext, useMemo } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import DataContext from '../../context/DataContext'
+import UserRecipeList from '../components/UserRecipeList'
+
+const normalizeListType = (value = '') => {
+  const input = value.toLowerCase()
+  if (['watchlist', 'favourites', 'favorites', 'faves'].includes(input)) return 'favourites'
+  if (['ratehistory', 'ratings', 'yourratings'].includes(input)) return 'ratings'
+  return 'favourites'
+}
+
+const LIST_COPY = {
+  favourites: {
+    label: 'Your favourites',
+    subtitle: 'Recipes you have saved while swiping through Dadly.',
+    description:
+      'Every right swipe ends up in your favourites. Sort this list to plan weekly menus, revisit seasonal dishes, or quickly find the recipes your family keeps asking for.',
+  },
+  ratings: {
+    label: 'Your ratings',
+    subtitle: 'A record of the dishes you have rated inside Dadly.',
+    description:
+      'Use your ratings to remember the recipes that truly impressed you—and the ones that need tweaks. Share thoughtful notes with friends or keep track of what to cook next.',
+  },
+}
+
+const formatDietaryType = (dietaryType) => {
+  if (!dietaryType) return 'No preference'
+  const readable = dietaryType.replace(/_/g, ' ')
+  return readable.charAt(0).toUpperCase() + readable.slice(1)
+}
+
+const formatJoinDate = (timestamp) => {
+  if (!timestamp) return 'Unknown'
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+  return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
 const UserPage = () => {
-    const { listType } = useParams()
-    const { currentUser } = useContext(dataCntxt)
+  const { userId, listType = 'favourites' } = useParams()
+  const normalizedType = normalizeListType(listType)
+  const { currentUser } = useContext(DataContext)
+
+  const heroCopy = LIST_COPY[normalizedType]
+
+  const userDetails = useMemo(() => {
+    if (!currentUser) {
+      return [
+        { label: 'Account', value: 'Guest', emphasis: true },
+        { label: 'Dietary preference', value: 'Sign in to personalise' },
+        { label: 'Since', value: '-' },
+      ]
+    }
+
+    return [
+      { label: 'Account', value: currentUser.name, emphasis: true },
+      { label: 'Email', value: currentUser.email },
+      { label: 'Dietary preference', value: formatDietaryType(currentUser.dietary_type) },
+      { label: 'Allergies', value: currentUser.allergies || 'Not specified' },
+      { label: 'Member since', value: formatJoinDate(currentUser.created_at) },
+      { label: 'User ID', value: userId || currentUser.id },
+    ]
+  }, [currentUser, userId])
+
+  if (!currentUser) {
     return (
-        <div>
-            <div className='bg-[#121212]'>
-            <div className='py-10 text-white max-w-[1280px] mx-auto'>
-                {listType === 'watchList' &&
-                    <div className='flex flex-col gap-2'>
-                        <h2 className='text-[3rem]'>Your WatchList</h2>
-                        <p className='italic'>by {currentUser?.name}</p>
-                        <p>Your Watchlist is the place to track the titles you want to watch. You can sort your Watchlist by the IMDb rating or popularity score and arrange your titles in the order you want to see them.</p>
-                    </div>}
-                {listType === 'watchHistory' &&
-                    <div className='flex flex-col gap-2'>
-                        <h2 className='text-[3rem]'>
-                            Your watch history</h2>
-                        <p className='italic'>by {currentUser?.name}</p>
-                        <p>Everything you've marked as watched, rated, reviewed, or checked into.</p>
-                    </div>}
-                {listType === 'rateHistory' &&
-                    <div className='flex flex-col gap-2'>
-                        <h2 className='text-[3rem]'>Your ratings</h2>
-                        <p className='italic'>by {currentUser?.name}</p>
-                        <p> This page compiles a list of titles you have rated, providing a convenient overview of all your ratings.</p>
-                    </div>}
-            </div>
-            </div>
-            <div className='bg-white'>
-                <div className='flex flex-col gap-10 py-15 max-w-[1280px] px-[1.5rem] mx-auto '>
-                    <div className='flex justify-between w-full'>
-                        <UserList />
-                        <UserMore />
-                    </div>
-                </div>
-            </div>
+      <section className='min-h-[60vh] flex items-center justify-center px-5'>
+        <div className='max-w-lg w-full border border-[#f6decf] rounded-3xl p-10 text-center space-y-6 bg-gradient-to-b from-[#fff4ed] to-white'>
+          <p className='uppercase text-xs tracking-[0.4rem] text-[#EB7A30]'>Dadly</p>
+          <h1 className='text-3xl font-semibold text-[#121212]'>Sign in to view your recipes</h1>
+          <p className='text-[#5c5c5c]'>
+            Save and rate recipes to build a personalised library that follows you across devices.
+          </p>
+          <Link
+            to='/auth/token'
+            className='inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#EB7A30] text-white font-semibold'
+          >
+            Sign in
+          </Link>
         </div>
+      </section>
     )
+  }
+
+  return (
+    <section className='bg-[#fff7f2] py-24 px-5'>
+      <div className='max-w-6xl mx-auto space-y-12'>
+        <header className='space-y-3 text-center sm:text-left'>
+          <p className='text-xs uppercase tracking-[0.4rem] text-[#EB7A30]'>{heroCopy.subtitle}</p>
+          <h1 className='text-4xl sm:text-5xl font-semibold text-[#121212]'>{heroCopy.label}</h1>
+          <p className='text-lg text-[#5c5c5c] max-w-3xl'>{heroCopy.description}</p>
+        </header>
+
+        <div className='grid lg:grid-cols-[2fr,1fr] gap-10'>
+          <div className='space-y-8'>
+            <UserRecipeList listType={normalizedType} />
+          </div>
+          <aside className='space-y-6'>
+            <div className='bg-white border border-[#f6decf] rounded-[32px] p-6 space-y-5 shadow-[0px_20px_60px_rgba(235,122,48,0.08)]'>
+              <div>
+                <p className='text-xs uppercase tracking-[0.4rem] text-[#EB7A30]'>Profile</p>
+                <p className='text-2xl font-semibold text-[#121212]'>{currentUser.name}</p>
+                <p className='text-sm text-[#6b6b6b]'>{currentUser.email}</p>
+              </div>
+              <ul className='space-y-3'>
+                {userDetails.map((detail) => (
+                  <li key={detail.label} className='flex flex-col'>
+                    <span className='text-xs uppercase tracking-[0.3rem] text-[#c24714]'>
+                      {detail.label}
+                    </span>
+                    <span
+                      className={`text-sm text-[#1a1a1a] ${
+                        detail.emphasis ? 'text-lg font-semibold mt-1' : ''
+                      }`}
+                    >
+                      {detail.value}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className='bg-[#fff4ed] rounded-[32px] p-6 space-y-4'>
+              <p className='text-lg font-semibold text-[#121212]'>Need a fresh idea?</p>
+              <p className='text-sm text-[#5c5c5c]'>
+                Jump back to the swipe deck to discover seasonal recipes or build your pantry list
+                to fine-tune recommendations.
+              </p>
+              <Link
+                to='/'
+                className='inline-flex items-center justify-center px-4 py-2 rounded-full bg-[#EB7A30] text-white text-sm font-semibold'
+              >
+                Explore recipes
+              </Link>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 export default UserPage

@@ -81,9 +81,10 @@ const Register = () => {
     try {
       // Call registerUser from AuthService
       await registerUser(user);
+        
 
       console.log('Uğurla qeydiyyatdan keçdiniz!');
-      navigate('/ap/signin');
+      navigate('/auth/token');
     } catch (err) {
       const msg = err.response?.data?.detail || err.message;
       if (msg.includes("already exists")) {
@@ -234,7 +235,7 @@ const Register = () => {
           <hr className='text-[#00000037] w-full my-3' />
 
           <span className='text-sm'>
-            Already have an account? <Link className='text-[#0e63be]' to='/ap/signin'>Sign in ›</Link>
+            Already have an account? <Link className='text-[#0e63be]' to='/auth/token'>Sign in ›</Link>
           </span>
         </form>
       </div>
