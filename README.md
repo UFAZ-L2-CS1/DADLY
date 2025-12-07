@@ -1,7 +1,6 @@
 # Dadly
 
-
-![Build Status](https://github.com/UFAZ-L2-CS1/DADLY/blob/develop/.github/workflows/ci.yml/badge.svg)
+![Build Status](https://github.com/UFAZ-L2-CS1/DADLY/actions/workflows/ci.yml/badge.svg)
 
 ---
 
