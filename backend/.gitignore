@@ -14,3 +14,4 @@ fetch_spoonacular_recipes.py
 
 # Local environment variables
 .env
+.pytest_cache/
