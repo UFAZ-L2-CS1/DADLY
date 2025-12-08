@@ -1,7 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FaFilter, FaTimes } from 'react-icons/fa';
-import { fetchRecipeFeed} from '../../service/Data';
+import { PiHeartStraight, PiHeartStraightFill } from 'react-icons/pi';
+import {
+  fetchRecipeFeed,
+  fetchLikedRecipes,
+  likeRecipe,
+  unlikeRecipe,
+} from '../../service/Data';
+import DataContext from '../../context/DataContext';
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=80';
@@ -12,7 +19,7 @@ const formatDifficulty = (difficulty) => {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 };
 
-const RecipeFeedCard = ({ recipe }) => {
+const RecipeFeedCard = ({ recipe, isLiked, onToggleLike, likeBusy }) => {
   const totalTime = (recipe.prep_time || 0) + (recipe.cook_time || 0);
   const difficulty = formatDifficulty(recipe.difficulty);
   const likeCount = recipe.like_count ?? 0;
@@ -50,9 +57,37 @@ const RecipeFeedCard = ({ recipe }) => {
           <span>Cook {recipe.cook_time ?? '—'}m</span>
           <span>Total {totalTime || '—'}m</span>
         </div>
-        <div className='flex items-center justify-between pt-3 border-t border-[#f2f2f2] text-sm text-[#EB7A30] font-semibold'>
-          <span>{difficulty}</span>
-          <span>❤️ {likeCount}</span>
+        <div className='flex flex-col gap-3 pt-3 border-t border-[#f2f2f2]'>
+          <div className='flex items-center justify-between text-sm text-[#EB7A30] font-semibold'>
+            <span>{difficulty}</span>
+            <span>❤️ {likeCount}</span>
+          </div>
+          <button
+            type='button'
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onToggleLike?.(recipe.id);
+            }}
+            disabled={likeBusy}
+            className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+              isLiked
+                ? 'bg-[#EB7A30] text-white shadow-[0_10px_20px_rgba(230,76,21,0.2)]'
+                : 'border border-[#EB7A30] text-[#EB7A30] hover:bg-[#EB7A30]/10'
+            } ${likeBusy ? 'opacity-70 cursor-not-allowed' : ''}`}
+          >
+            {isLiked ? (
+              <>
+                <PiHeartStraightFill className='text-base' />
+                Liked
+              </>
+            ) : (
+              <>
+                <PiHeartStraight className='text-base' />
+                Like recipe
+              </>
+            )}
+          </button>
         </div>
       </div>
     </Link>
@@ -75,6 +110,8 @@ const formatLabel = (value = '') =>
   value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
 
 const RecipesPage = ({ limit = 12 }) => {
+  const navigate = useNavigate();
+  const { currentUser } = useContext(DataContext);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedIngredient = searchParams.get('ingredient') || '';
 
@@ -86,6 +123,13 @@ const RecipesPage = ({ limit = 12 }) => {
   const [selectedDifficulty, setSelectedDifficulty] = useState('');
   const [selectedPrepTime, setSelectedPrepTime] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [likedIds, setLikedIds] = useState(() => new Set());
+  const [pendingLikes, setPendingLikes] = useState(() => new Set());
+
+  useEffect(() => {
+    const paramSearch = searchParams.get('search') || '';
+    setSearchQuery(paramSearch);
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,15 +173,45 @@ const RecipesPage = ({ limit = 12 }) => {
 
   };
 
-  const availableIngredients = useMemo(() => {
-    const set = new Set();
-    allRecipes.forEach((recipe) => {
-      normalizeIngredients(recipe?.ingredients).forEach((item) => {
-        if (item) set.add(item.toLowerCase());
-      });
-    });
-    return Array.from(set).sort();
-  }, [allRecipes]);
+  const updateSearchQuery = (value) => {
+    setSearchQuery(value);
+    const nextParams = new URLSearchParams(searchParams);
+    if (value) {
+      nextParams.set('search', value);
+    } else {
+      nextParams.delete('search');
+    }
+    setSearchParams(nextParams);
+  };
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadLikedRecipes = async () => {
+      if (!currentUser) {
+        setLikedIds(new Set());
+        return;
+      }
+
+      try {
+        const response = await fetchLikedRecipes(200);
+        if (cancelled) return;
+        const ids = new Set(
+          (response?.recipes || []).map((recipe) => recipe.id).filter(Boolean)
+        );
+        setLikedIds(ids);
+      } catch (err) {
+        console.error('Failed to load liked recipes:', err);
+        if (!cancelled) {
+          setLikedIds(new Set());
+        }
+      }
+    };
+
+    loadLikedRecipes();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
 
   const filteredRecipes = useMemo(() => {
     return allRecipes.filter((recipe) => {
@@ -168,8 +242,59 @@ const RecipesPage = ({ limit = 12 }) => {
     });
   }, [allRecipes, searchQuery, selectedIngredient, selectedDifficulty, selectedPrepTime]);
 
+  const handleToggleLike = async (recipeId) => {
+    if (!currentUser) {
+      navigate('/auth/token');
+      return;
+    }
+
+    if (pendingLikes.has(recipeId)) return;
+
+    setPendingLikes((prev) => {
+      const next = new Set(prev);
+      next.add(recipeId);
+      return next;
+    });
+
+    const isLiked = likedIds.has(recipeId);
+    try {
+      if (isLiked) {
+        await unlikeRecipe(recipeId);
+      } else {
+        await likeRecipe(recipeId);
+      }
+
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        if (isLiked) {
+          next.delete(recipeId);
+        } else {
+          next.add(recipeId);
+        }
+        return next;
+      });
+
+      setAllRecipes((prev) =>
+        prev.map((recipe) => {
+          if (recipe.id !== recipeId) return recipe;
+          const base = Number(recipe.like_count) || 0;
+          const nextCount = isLiked ? Math.max(0, base - 1) : base + 1;
+          return { ...recipe, like_count: nextCount };
+        })
+      );
+    } catch (err) {
+      console.error('Failed to toggle recipe like:', err);
+    } finally {
+      setPendingLikes((prev) => {
+        const next = new Set(prev);
+        next.delete(recipeId);
+        return next;
+      });
+    }
+  };
+
   const handleClearFilters = () => {
-    setSearchQuery('');
+    updateSearchQuery('');
     setSelectedDifficulty('');
     setSelectedPrepTime('');
     updateIngredientFilter('');
@@ -181,9 +306,6 @@ const RecipesPage = ({ limit = 12 }) => {
     selectedPrepTime,
     searchQuery,
   ].filter(Boolean).length;
-console.log('Rendering RecipesPage', { loading, error, allRecipes, filteredRecipes }
-    
-);
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -269,7 +391,7 @@ console.log('Rendering RecipesPage', { loading, error, allRecipes, filteredRecip
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(event) => updateSearchQuery(event.target.value)}
                 placeholder="Search by recipe name..."
                 className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg outline-none focus:border-[#E64C15]"
               />
@@ -326,7 +448,7 @@ console.log('Rendering RecipesPage', { loading, error, allRecipes, filteredRecip
             {searchQuery && (
               <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#E64C15] text-white rounded-full text-sm">
                 Search: "{searchQuery}"
-                <button onClick={() => setSearchQuery('')} className="hover:opacity-80">
+                <button onClick={() => updateSearchQuery('')} className="hover:opacity-80">
                   <FaTimes size={12} />
                 </button>
               </span>
@@ -375,7 +497,13 @@ console.log('Rendering RecipesPage', { loading, error, allRecipes, filteredRecip
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredRecipes.map((recipe) => (
-              <RecipeFeedCard key={recipe.id} recipe={recipe} />
+              <RecipeFeedCard
+                key={recipe.id}
+                recipe={recipe}
+                isLiked={likedIds.has(recipe.id)}
+                likeBusy={pendingLikes.has(recipe.id)}
+                onToggleLike={handleToggleLike}
+              />
             ))}
           </div>
         )}

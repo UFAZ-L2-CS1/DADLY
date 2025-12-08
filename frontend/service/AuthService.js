@@ -10,7 +10,7 @@ function getAuthHeader() {
 export async function registerUser(userData) {
     try {
         const response = await AuthInstance.post(
-            '/register',
+            '/api/v1/auth/register',
             {
                 email: userData.email,
                 name: userData.name,
@@ -40,7 +40,7 @@ export async function login(email, password) {
         formData.append('password', password);
 
         const response = await AuthInstance.post(
-            '/token',
+            '/api/v1/auth/token',
             formData, // Axios automatically handles this as the body
             {
                 headers: {
@@ -64,48 +64,48 @@ export async function login(email, password) {
 }
 // Get current logged-in user
 export async function getCurrentUser() {
-  try {
-    const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) return null;
+    try {
+        const accessToken = localStorage.getItem('access_token');
+        if (!accessToken) return null;
 
-    const response = await AuthInstance.get('/me', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-    console.log(response.data);
+        const response = await AuthInstance.get('/api/v1/auth/me', {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+        console.log(response.data);
 
-    return response.data; // <-- must be the actual user object
-  } catch (error) {
-    console.error('Get current user failed:', error);
-    return null;
-  }
+        return response.data; // <-- must be the actual user object
+    } catch (error) {
+        console.error('Get current user failed:', error);
+        return null;
+    }
 }
 // Get current logged-in user
 export async function getLikedUser() {
-  try {
-    const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) return null;
+    try {
+        const accessToken = localStorage.getItem('access_token');
+        if (!accessToken) return null;
 
-    const response = await AuthInstance.get('/recipes/liked', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-    console.log(response.data);
+        const response = await AuthInstance.get('/api/v1/recipes/liked', {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+        console.log(response.data);
 
-    return response.data; // <-- must be the actual user object
+        return response.data; // <-- must be the actual user object
 
-  } catch (error) {
-    console.error('Get current user failed:', error);
-    return null;
-  }
+    } catch (error) {
+        console.error('Get current user failed:', error);
+        return null;
+    }
 }
 // Refresh access token
 export async function refreshAccessToken() {
     try {
         const response = await AuthInstance.post(
-            '/refresh',
+            '/api/v1/auth/refresh',
             {}, // Axios needs a body, even if empty
             {
                 headers: {
@@ -131,7 +131,7 @@ export async function refreshAccessToken() {
 export async function logout() {
     try {
         await AuthInstance.post(
-            '/logout',
+            '/api/v1/auth/logout',
             {}, // Axios needs a body for POST, even if empty
             {
                 headers: {
@@ -145,5 +145,54 @@ export async function logout() {
         // Clear tokens and redirect regardless of API response
         localStorage.clear();
         window.location.href = '/login';
+    }
+}
+
+export async function fetchUserStats() {
+    try {
+        const response = await AuthInstance.get('/users/stats', {
+            headers: getAuthHeader(),
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Fetching user stats failed:', error.response?.data || error.message);
+        throw error;
+    }
+}
+
+export async function deleteUserAccount(password) {
+    if (!password) {
+        throw new Error("Password is required to delete account");
+    }
+
+    try {
+        const response = await AuthInstance.delete('/users/profile', {
+            headers: getAuthHeader(),
+            data: { password },   // REQUIRED
+        });
+
+        return response.data;
+    } catch (error) {
+        // Log the entire error object if response data and message are not available
+        console.error('Error deleting user account:', error.response?.data || error.message || error);
+        throw error;
+    }
+}
+export async function updateUserProfile(updates = {}) {
+    if (!updates || Object.keys(updates).length === 0) {
+        throw new Error('No profile fields provided');
+    }
+
+    try {
+        const response = await AuthInstance.put('/users/profile', updates, {
+            headers: getAuthHeader(),
+        });
+        return response.data;
+    } catch (error) {
+        const errorMessage = error.response?.data
+            ? (typeof error.response.data === 'object' ? JSON.stringify(error.response.data) : error.response.data)
+            : error.message || 'Unknown error';
+        console.error('Profile update failed:', errorMessage);
+        throw error;
     }
 }

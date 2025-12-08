@@ -2,7 +2,7 @@ import React from 'react'
 
 const About = () => {
   return (
-    <section className='max-w-[900px] mx-auto px-5 space-y-4'>
+    <section className='max-w-[900px] pt-20 mx-auto px-5 space-y-4'>
       <h1 className='text-3xl font-semibold text-[#121212]'>About Dadly</h1>
       <p className='text-[#525252] leading-relaxed'>
         Dadly was born from the idea that meal discovery should be playful, helpful, and deeply personal.
