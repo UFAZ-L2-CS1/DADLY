@@ -178,7 +178,7 @@ const RecipeFeed = ({ limit = 12 }) => {
         <>
           <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
             {state.recipes.map((recipe) => (
-              <RecipeFeedCard key={recipe.id} recipe={recipe} />
+              <RecipeFeedCard key ={recipe.id} recipe={recipe} />
             ))}
           </div>
           {hasMore && (
