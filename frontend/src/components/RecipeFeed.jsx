@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { fetchRecipeFeed } from '../../service/Data'
+import React, { useContext, useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { fetchRecipeFeed, fetchLikedRecipes, likeRecipe, unlikeRecipe } from '../../service/Data'
+import DataContext from '../../context/DataContext'
+import { PiHeartStraight, PiHeartStraightFill } from 'react-icons/pi'
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=80'
@@ -11,7 +13,7 @@ const formatDifficulty = (difficulty) => {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1)
 }
 
-const RecipeFeedCard = ({ recipe }) => {
+const RecipeFeedCard = ({ recipe, isLiked, onToggle, busy }) => {
   const totalTime = (recipe.prep_time || 0) + (recipe.cook_time || 0)
   const difficulty = formatDifficulty(recipe.difficulty)
   const likeCount = recipe.like_count ?? 0
@@ -49,9 +51,36 @@ const RecipeFeedCard = ({ recipe }) => {
           <span>Cook {recipe.cook_time ?? '—'}m</span>
           <span>Total {totalTime || '—'}m</span>
         </div>
-        <div className='flex items-center justify-between pt-3 border-t border-[#f2f2f2] text-sm text-[#EB7A30] font-semibold'>
-          <span>{difficulty}</span>
-          <span>❤️ {likeCount}</span>
+        <div className='flex flex-col gap-3 pt-3 border-t border-[#f2f2f2]'>
+          <div className='flex items-center justify-between text-sm text-[#EB7A30] font-semibold'>
+            <span>{difficulty}</span>
+            <span>❤️ {likeCount}</span>
+          </div>
+          <button
+            type='button'
+            disabled={busy}
+            onClick={(event) => {
+              event.preventDefault()
+              onToggle?.(recipe.id)
+            }}
+            className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+              isLiked
+                ? 'bg-[#EB7A30] text-white shadow-[0_10px_20px_rgba(230,76,21,0.2)]'
+                : 'border border-[#EB7A30] text-[#EB7A30] hover:bg-[#EB7A30]/10'
+            } ${busy ? 'opacity-70 cursor-not-allowed' : ''}`}
+          >
+            {isLiked ? (
+              <>
+                <PiHeartStraightFill className='text-base' />
+                Liked
+              </>
+            ) : (
+              <>
+                <PiHeartStraight className='text-base' />
+                Like recipe
+              </>
+            )}
+          </button>
         </div>
       </div>
     </Link>
@@ -59,11 +88,15 @@ const RecipeFeedCard = ({ recipe }) => {
 }
 
 const RecipeFeed = ({ limit = 12 }) => {
+  const navigate = useNavigate()
+  const { currentUser } = useContext(DataContext)
   const [state, setState] = useState({
     loading: true,
     error: null,
     recipes: [],
   })
+  const [likedIds, setLikedIds] = useState(() => new Set())
+  const [pendingLikes, setPendingLikes] = useState(() => new Set())
   const [reloadKey, setReloadKey] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
@@ -125,6 +158,87 @@ const RecipeFeed = ({ limit = 12 }) => {
     }
   }
 
+  useEffect(() => {
+    let cancelled = false
+
+    const hydrateLikes = async () => {
+      if (!currentUser) {
+        setLikedIds(new Set())
+        return
+      }
+      try {
+        const response = await fetchLikedRecipes(200)
+        if (!cancelled) {
+          setLikedIds(
+            new Set((response?.recipes || []).map((recipe) => recipe.id).filter(Boolean))
+          )
+        }
+      } catch (err) {
+        console.error('Failed to load liked recipes:', err)
+        if (!cancelled) setLikedIds(new Set())
+      }
+    }
+
+    hydrateLikes()
+    return () => {
+      cancelled = true
+    }
+  }, [currentUser])
+
+  const handleToggleLike = async (recipeId) => {
+    if (!currentUser) {
+      navigate('/auth/token')
+      return
+    }
+    if (pendingLikes.has(recipeId)) return
+
+    setPendingLikes((prev) => {
+      const next = new Set(prev)
+      next.add(recipeId)
+      return next
+    })
+
+    const isLiked = likedIds.has(recipeId)
+    try {
+      if (isLiked) {
+        await unlikeRecipe(recipeId)
+      } else {
+        await likeRecipe(recipeId)
+      }
+      setLikedIds((prev) => {
+        const next = new Set(prev)
+        if (isLiked) {
+          next.delete(recipeId)
+        } else {
+          next.add(recipeId)
+        }
+        return next
+      })
+      setState((prev) => ({
+        ...prev,
+        recipes: prev.recipes.map((recipe) =>
+          recipe.id === recipeId
+            ? {
+                ...recipe,
+                like_count: Math.max(
+                  0,
+                  (Number(recipe.like_count) || 0) + (isLiked ? -1 : 1)
+                ),
+              }
+            : recipe
+        ),
+      }))
+    } catch (err) {
+      console.error('Failed to toggle favourite:', err)
+    } finally {
+      setPendingLikes((prev) => {
+        const next = new Set(prev)
+        next.delete(recipeId)
+        return next
+      })
+    }
+  }
+
   const renderSkeleton = () => (
     <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
       {Array.from({ length: Math.min(limit, 6) }).map((_, index) => (
@@ -178,7 +292,13 @@ const RecipeFeed = ({ limit = 12 }) => {
         <>
           <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
             {state.recipes.map((recipe) => (
-              <RecipeFeedCard key ={recipe.id} recipe={recipe} />
+              <RecipeFeedCard
+                key={recipe.id}
+                recipe={recipe}
+                isLiked={likedIds.has(recipe.id)}
+                busy={pendingLikes.has(recipe.id)}
+                onToggle={handleToggleLike}
+              />
             ))}
           </div>
           {hasMore && (

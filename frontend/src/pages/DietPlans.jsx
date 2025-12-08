@@ -2,7 +2,7 @@ import React from 'react'
 
 const DietPlans = () => {
   return (
-    <section className='max-w-[900px] mx-auto px-5 space-y-4'>
+    <section className='max-w-[900px] pt-20 mx-auto px-5 space-y-4'>
       <h1 className='text-3xl font-semibold text-[#121212]'>Diet Plans</h1>
       <p className='text-[#525252] leading-relaxed'>
         Structured programs that pair grocery lists with smart scheduling are almost ready.

@@ -12,6 +12,7 @@ import MainLayout from './layout/MainLayout.jsx';
 import UserPage from './pages/UserPage.jsx';
 import RecipesPage from './components/RecipesPage.jsx';
 import Pantry from './pages/Pantry.jsx';
+import UserProfilePanel from './components/UserProfilePanel.jsx';
 function App() {
   return (
     <ErrorBoundary>
@@ -26,6 +27,7 @@ function App() {
             <Route path="/recipes" element={<RecipesPage />} />
             <Route path='pantry' element={<Pantry />} />
             <Route path='user/:userId/:listType' element={<UserPage />} />
+            <Route path='user/profile' element={<UserProfilePanel />} />
           </Route>
           <Route path='/auth/token' element={<SignIn />} />
           <Route path='/auth/register' element={<Register />} />

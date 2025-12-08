@@ -8,7 +8,7 @@ import {
   unlikeRecipe
 } from '../../service/Data'
 import { deriveDietaryTags } from '../utils/dietaryTags'
-import { PiBookmarkSimple, PiBookmarkSimpleFill, PiHeartStraight, PiHeartStraightFill } from 'react-icons/pi'
+import { PiHeartStraight, PiHeartStraightFill } from 'react-icons/pi'
 import { Link, useNavigate } from 'react-router-dom'
 
 const FILTERS = [
@@ -270,20 +270,6 @@ const RecipeCarousel = () => {
                         'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80'
                     }}
                   />
-                  
-                  <button
-                    type='button'
-                    onClick={handleFavouriteClick}
-                    disabled={busyRecipe === recipe.id}
-                    className='absolute top-3 right-3 rounded-full border border-white bg-white/90 p-2.5 shadow-lg transition hover:bg-white'
-                    aria-label={isSaved ? 'Remove from saved recipes' : 'Save recipe'}
-                  >
-                    {isSaved ? (
-                      <PiBookmarkSimpleFill className='text-lg text-[#EB7A30]' />
-                    ) : (
-                      <PiBookmarkSimple className='text-lg text-[#181818]' />
-                    )}
-                  </button>
                 </div>
                 <div className='flex flex-1 flex-col space-y-3 px-4 pb-5 pt-4'>
                   <h3 className='text-lg font-semibold text-[#161616] line-clamp-2'>{recipe.name}</h3>
@@ -304,12 +290,12 @@ const RecipeCarousel = () => {
                     {isSaved ? (
                       <>
                         <PiHeartStraightFill className='text-base' />
-                        In favourites
+                        Liked
                       </>
                     ) : (
                       <>
                         <PiHeartStraight className='text-base' />
-                        Add to favourites
+                        Like recipe
                       </>
                     )}
                   </button>

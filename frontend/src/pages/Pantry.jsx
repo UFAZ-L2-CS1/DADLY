@@ -91,7 +91,8 @@ export default function Pantry() {
       setBulkInput('');
       setShowBulkInput(false);
       await loadPantryItems(); // Refresh list
-    } catch (err) {
+    } catch (error) {
+      console.error('Failed to add pantry ingredients:', error);
       setError('Failed to add ingredients. Please try again.');
     } finally {
       setAddingIngredient(false);
@@ -103,7 +104,8 @@ export default function Pantry() {
     try {
       await deletePantryIngredient(ingredientId);
       setIngredients((prev) => prev.filter((item) => item.id !== ingredientId));
-    } catch (err) {
+    } catch (error) {
+      console.error('Failed to delete pantry ingredient:', error);
       setError('Failed to delete ingredient. Please try again.');
     }
   };
@@ -117,7 +119,8 @@ export default function Pantry() {
     try {
       await clearPantry();
       setIngredients([]);
-    } catch (err) {
+    } catch (error) {
+      console.error('Failed to clear pantry:', error);
       setError('Failed to clear pantry. Please try again.');
     }
   };
