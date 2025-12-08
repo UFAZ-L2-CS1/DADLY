@@ -1,5 +1,7 @@
 import { Dice6, Salad, UtensilsCrossed, Info, Carrot } from 'lucide-react';
 
+const ingredientLink = (ingredient) => `/recipes?ingredient=${encodeURIComponent(ingredient)}`;
+
 export const NAV_SECTIONS = [
   {
     id: 'meal-game',
@@ -52,13 +54,55 @@ export const NAV_SECTIONS = [
   {
     id: 'ingredients',
     label: 'Ingredients',
-    href: '/ingredients',
+    href: '/recipes',
     icon: Carrot,
     items: [
-      { name: 'Seasonal Produce', url: '/ingredients?view=seasonal' },
-      { name: 'Spice Cabinet', url: '/ingredients?view=spices' },
-      { name: 'Pantry Staples', url: '/ingredients?view=pantry' },
-      { name: 'Protein Guide', url: '/ingredients?view=protein' },
+      {
+        name: 'Vegetables',
+        subItems: [
+          { name: 'Spinach', url: ingredientLink('spinach') },
+          { name: 'Broccoli', url: ingredientLink('broccoli') },
+          { name: 'Bell Pepper', url: ingredientLink('bell pepper') },
+          { name: 'Sweet Potato', url: ingredientLink('sweet potato') },
+        ],
+      },
+      {
+        name: 'Meat & Seafood',
+        subItems: [
+          { name: 'Chicken Breast', url: ingredientLink('chicken breast') },
+          { name: 'Ground Beef', url: ingredientLink('ground beef') },
+          { name: 'Salmon', url: ingredientLink('salmon') },
+          { name: 'Shrimp', url: ingredientLink('shrimp') },
+        ],
+      },
+      {
+        name: 'Dairy & Eggs',
+        subItems: [
+          { name: 'Mozzarella', url: ingredientLink('mozzarella') },
+          { name: 'Greek Yogurt', url: ingredientLink('greek yogurt') },
+          { name: 'Parmesan', url: ingredientLink('parmesan') },
+          { name: 'Eggs', url: ingredientLink('eggs') },
+        ],
+      },
+      {
+        name: 'Pantry Staples',
+        subItems: [
+          { name: 'Brown Rice', url: ingredientLink('brown rice') },
+          { name: 'Quinoa', url: ingredientLink('quinoa') },
+          { name: 'Chickpeas', url: ingredientLink('chickpeas') },
+          { name: 'Pasta', url: ingredientLink('pasta') },
+        ],
+      },
+      {
+        name: 'Herbs & Spices',
+        subItems: [
+          { name: 'Basil', url: ingredientLink('basil') },
+          { name: 'salt', url: ingredientLink('salt') },
+          { name: 'Cilantro', url: ingredientLink('cilantro') },
+          { name: 'Garlic', url: ingredientLink('garlic') },
+          { name: 'Ginger', url: ingredientLink('ginger') },
+        ],
+      },
     ],
   },
 ];

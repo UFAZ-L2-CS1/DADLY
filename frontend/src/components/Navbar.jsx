@@ -9,18 +9,59 @@ import { FaSearch } from "react-icons/fa";
 import { RiArrowDropDownLine } from "react-icons/ri";
 import Sidebar from './Sidebar';
 import { NAV_SECTIONS } from '../constants/navigation';
+// import { savePantryIngredient } from '../../service/Data';
 
-const Navbar = () => {
+export const Navbar = () => {
   const [openSidebar, setOpenSidebar] = useState(false);
   const [userDropdown, setUserDropdown] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [openSubmenus, setOpenSubmenus] = useState({});
   const [searchValue, setSearchValue] = useState('');
-  
   const userDropdownRef = useRef(null);
   const navDropdownRef = useRef(null);
   const navigate = useNavigate();
   
   const { currentUser, setCurrentUser } = useContext(DataContext);
+
+  const extractIngredientValue = (url = '', fallback = '') => {
+    try {
+      const [, query] = url.split('?');
+      if (!query) return fallback;
+      const params = new URLSearchParams(query);
+      return params.get('ingredient') || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  // const handleIngredientSelect = (url = '', fallback = '') => {
+  //   const value = extractIngredientValue(url, fallback).trim();
+  //   if (!value || !currentUser) return;
+  //   savePantryIngredient(value).catch((err) => {
+  //     console.error('Failed to save pantry selection:', err);
+  //   });
+  // };
+
+  // Toggle submenu
+  const toggleSubmenu = (sectionId, itemName) => {
+    const key = `${sectionId}-${itemName}`;
+    setOpenSubmenus((prev) => {
+      const isOpen = !!prev[key];
+      const next = {};
+
+      Object.entries(prev).forEach(([entryKey, value]) => {
+        if (!entryKey.startsWith(`${sectionId}-`)) {
+          next[entryKey] = value;
+        }
+      });
+
+      if (!isOpen) {
+        next[key] = true;
+      }
+
+      return next;
+    });
+  };
 
   // Sign out function
   const handleSignOut = () => {
@@ -30,20 +71,30 @@ const Navbar = () => {
     navigate('/');
   };
 
-  // Close user dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
+      // Close user dropdown
       if (userDropdownRef.current && !userDropdownRef.current.contains(e.target)) {
         setUserDropdown(false);
       }
+      
+      // Close nav dropdown and submenus
       if (navDropdownRef.current && !navDropdownRef.current.contains(e.target)) {
-        setActiveDropdown(null);
+        // Check if click is not on a submenu trigger
+        const isSubmenuTrigger = e.target.closest('[data-submenu-trigger]');
+        if (!isSubmenuTrigger) {
+          setActiveDropdown(null);
+          setOpenSubmenus({});
+        }
       }
     };
     
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const navSections = NAV_SECTIONS;
 
   return (
     <>
@@ -175,14 +226,8 @@ const Navbar = () => {
 
                     {/* User Dropdown Menu - Mobile */}
                     {userDropdown && (
-                      <div className='absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200'>
-                        <Link 
-                          className='block px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] transition-colors' 
-                          to={`/user/${currentUser?.id}/favourites`}
-                          onClick={() => setUserDropdown(false)}
-                        >
-                          Your Favourites
-                        </Link>
+                      <div className='absolute right-0  top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200'>
+                        
                         <Link 
                           className='block px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] transition-colors' 
                           to={`/user/${currentUser?.id}/rateHistory`}
@@ -212,7 +257,7 @@ const Navbar = () => {
             <div className='flex items-center justify-between gap-4 py-3'>
               {/* Desktop Navigation */}
               <nav className='hidden lg:flex gap-2 items-center' ref={navDropdownRef}>
-                {NAV_SECTIONS.map((section) => {
+                {navSections.map((section) => {
                   const hasItems = section.items && section.items.length > 0;
                   const isActive = activeDropdown === section.id;
 
@@ -220,7 +265,12 @@ const Navbar = () => {
                     <div key={section.id} className='relative'>
                       {hasItems ? (
                         <button
-                          onClick={() => setActiveDropdown(isActive ? null : section.id)}
+                          onClick={() => {
+                            setActiveDropdown(isActive ? null : section.id);
+                            if (isActive) {
+                              setOpenSubmenus({});
+                            }
+                          }}
                           className={`flex items-center gap-1 px-4 py-3 text-sm font-medium transition-all border-b-2 ${
                             isActive 
                               ? 'text-[#E64C15] border-[#E64C15]' 
@@ -244,17 +294,69 @@ const Navbar = () => {
 
                       {/* Desktop Dropdown */}
                       {isActive && hasItems && (
-                        <div className='absolute top-full  left-0 mt-5 min-w-[220px] bg-white rounded-b-lg shadow-lg border border-gray-100 border-t-0 py-2 animate-in fade-in slide-in-from-top-2 duration-200'>
-                          {section.items.map((item) => (
-                            <Link
-                              key={item.name}
-                              to={item.url}
-                              className='block px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] transition-colors'
-                              onClick={() => setActiveDropdown(null)}
-                            >
-                              {item.name}
-                            </Link>
-                          ))}
+                        <div className='absolute top-full left-0 mt-5 min-w-[260px] bg-white rounded-b-lg shadow-lg border border-gray-100 border-t-0 py-3 animate-in fade-in slide-in-from-top-2 duration-200'>
+                          {section.items.map((item) => {
+                            const hasSubItems = item.subItems && item.subItems.length > 0;
+                            const submenuKey = `${section.id}-${item.name}`;
+                            const isSubmenuOpen = !!openSubmenus[submenuKey];
+
+                            if (hasSubItems) {
+                              return (
+                                <div key={item.name} className='px-4 py-2 border-b border-gray-50 last:border-b-0'>
+                                  <button
+                                    type='button'
+                                    onClick={() => toggleSubmenu(section.id, item.name)}
+                                    data-submenu-trigger={submenuKey}
+                                    className='w-full flex items-center justify-between text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:text-[#E64C15] transition-colors'
+                                  >
+                                    <span>{item.name}</span>
+                                    <RiArrowDropDownLine
+                                      size={18}
+                                      className={`transition-transform ${isSubmenuOpen ? 'rotate-180 text-[#E64C15]' : ''}`}
+                                    />
+                                  </button>
+                                  <div
+                                    className={`flex flex-col gap-1 mt-2 transition-all duration-200 ${
+                                      isSubmenuOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'
+                                    }`}
+                                  >
+                                    {isSubmenuOpen &&
+                                      item.subItems.map((subItem) => (
+                                        <Link
+                                          key={subItem.name}
+                                          to={subItem.url}
+                                          className='block px-2 py-1.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] rounded-md transition-colors'
+                                          onClick={() => {
+                                            setActiveDropdown(null);
+                                            setOpenSubmenus({});
+                                            // handleIngredientSelect(subItem.url, subItem.name);
+                                          }}
+                                        >
+                                          {subItem.name}
+                                        </Link>
+                                      ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <Link
+                                key={item.name}
+                                to={item.url}
+                                className='block px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#E64C15] transition-colors'
+                                onClick={() => {
+                                  setActiveDropdown(null);
+                                  setOpenSubmenus({});
+                                  // if (section.id === 'ingredients') {
+                                  //   handleIngredientSelect(item.url, item.name);
+                                  // }
+                                }}
+                              >
+                                {item.name}
+                              </Link>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -286,5 +388,3 @@ const Navbar = () => {
     </>
   );
 };
-
-export default Navbar;

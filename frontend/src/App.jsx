@@ -10,7 +10,7 @@ import SignIn from './pages/SignIn.jsx';
 import Register from './pages/Register.jsx';
 import MainLayout from './layout/MainLayout.jsx';
 import UserPage from './pages/UserPage.jsx';
-
+import RecipesPage from './components/RecipesPage.jsx';
 function App() {
   return (
     <ErrorBoundary>
@@ -22,6 +22,7 @@ function App() {
             <Route path='recipes/:id' element={<RecipeDetails />} />
             <Route path='diet-plans' element={<DietPlans />} />
             <Route path='about-us' element={<About />} />
+            <Route path="/recipes" element={<RecipesPage />} />
             <Route path='user/:userId/:listType' element={<UserPage />} />
           </Route>
           <Route path='/auth/token' element={<SignIn />} />

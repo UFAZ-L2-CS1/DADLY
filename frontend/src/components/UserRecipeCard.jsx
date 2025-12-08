@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-
+import { GoHeart } from "react-icons/go";
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80'
 
@@ -33,7 +33,7 @@ const UserRecipeCard = ({ recipe, view, listType }) => {
   const ratingValue = recipe.rating ?? null
   const likedDate = formatTimestamp(recipe.liked_at || recipe.saved_at)
   const difficulty = formatDifficulty(recipe.difficulty)
-
+console.log('recipe description:', recipe)
   if (view === 'grid') {
     return (
       <Link
@@ -58,7 +58,7 @@ const UserRecipeCard = ({ recipe, view, listType }) => {
           </p>
           <div className='flex items-center gap-3 text-xs text-[#EB7A30] font-semibold'>
             <span>{difficulty}</span>
-            <span>❤️ {recipe.like_count}</span>
+            <span><GoHeart />  {recipe.like_count}</span>
             {ratingValue && listType === 'ratings' && (
               <span className='flex items-center gap-1'>★ {ratingValue}</span>
             )}
@@ -99,7 +99,7 @@ const UserRecipeCard = ({ recipe, view, listType }) => {
           ) : likedDate ? (
             <span>{likedDate}</span>
           ) : (
-            <span>❤️ {recipe.like_count}</span>
+            <span><GoHeart />{recipe.like_count}</span>
           )}
         </div>
       </Link>
@@ -131,6 +131,10 @@ const UserRecipeCard = ({ recipe, view, listType }) => {
             >
               {recipe.name}
             </Link>
+              {recipe.description && (
+          <p className='text-sm text-[#4a4a4a] leading-relaxed line-clamp-3'>aaaaa{recipe.description}</p>
+        )}
+       
             <p className='text-sm text-[#6b6b6b]'>
               Prep {recipe.prep_time}m • Cook {recipe.cook_time}m
             </p>
@@ -142,14 +146,7 @@ const UserRecipeCard = ({ recipe, view, listType }) => {
             {likedDate && <p>Saved {likedDate}</p>}
           </div>
         </div>
-        {recipe.description && (
-          <p className='text-sm text-[#4a4a4a] leading-relaxed line-clamp-3'>{recipe.description}</p>
-        )}
-        <div className='flex flex-wrap gap-3'>
-          <RecipeStat label='Difficulty' value={difficulty} />
-          <RecipeStat label='Likes' value={recipe.like_count ?? 0} />
-          <RecipeStat label='Total time' value={`${recipe.prep_time + recipe.cook_time}m`} />
-        </div>
+      
       </div>
     </article>
   )
