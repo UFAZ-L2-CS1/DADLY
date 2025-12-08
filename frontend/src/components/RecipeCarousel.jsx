@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import DataContext from '../../context/DataContext'
 import {
   fetchRecipeDetails,
@@ -27,9 +27,8 @@ const RecipeCarousel = () => {
   const [activeFilter, setActiveFilter] = useState('all')
   const [fetchState, setFetchState] = useState({ loading: true, error: null })
   const [savedIds, setSavedIds] = useState(new Set())
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
   const [busyRecipe, setBusyRecipe] = useState(null)
-  const sliderRef = useRef(null)
   const navigate = useNavigate()
 
   const filteredRecipes = useMemo(() => {
@@ -37,14 +36,20 @@ const RecipeCarousel = () => {
     return recipes.filter((recipe) => recipe.dietaryTags?.includes(activeFilter))
   }, [recipes, activeFilter])
 
-  const totalPages = Math.max(1, Math.ceil(filteredRecipes.length / ITEMS_PER_VIEW))
-  const currentPage = Math.min(totalPages, Math.floor(currentIndex / ITEMS_PER_VIEW) + 1)
+  const slides = useMemo(() => {
+    if (!filteredRecipes.length) return []
+    const chunks = []
+    for (let i = 0; i < filteredRecipes.length; i += ITEMS_PER_VIEW) {
+      chunks.push(filteredRecipes.slice(i, i + ITEMS_PER_VIEW))
+    }
+    return chunks
+  }, [filteredRecipes])
+
+  const totalPages = Math.max(1, slides.length || 1)
+  const currentSlide = slides[currentPage - 1] || []
 
   const resetPosition = useCallback(() => {
-    setCurrentIndex(0)
-    if (sliderRef.current) {
-      sliderRef.current.scrollTo({ left: 0, behavior: 'smooth' })
-    }
+    setCurrentPage(1)
   }, [])
 
   const loadRecipes = useCallback(async () => {
@@ -96,18 +101,24 @@ const RecipeCarousel = () => {
     resetPosition()
   }, [activeFilter, resetPosition])
 
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(prev, totalPages))
+  }, [totalPages])
+
+  useEffect(() => {
+    if (slides.length <= 1) return
+    const timer = setInterval(() => {
+      setCurrentPage((prev) => (prev >= totalPages ? 1 : prev + 1))
+    }, 6000)
+    return () => clearInterval(timer)
+  }, [slides.length, totalPages])
+
   const handlePrev = () => {
-    if (!sliderRef.current) return
-    const offset = sliderRef.current.clientWidth
-    sliderRef.current.scrollBy({ left: -offset, behavior: 'smooth' })
-    setCurrentIndex((prev) => Math.max(0, prev - ITEMS_PER_VIEW))
+    setCurrentPage((prev) => Math.max(1, prev - 1))
   }
 
   const handleNext = () => {
-    if (!sliderRef.current) return
-    const offset = sliderRef.current.clientWidth
-    sliderRef.current.scrollBy({ left: offset, behavior: 'smooth' })
-    setCurrentIndex((prev) => Math.min(filteredRecipes.length - 1, prev + ITEMS_PER_VIEW))
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1))
   }
 
   const toggleSaved = async (recipeId) => {
@@ -229,85 +240,84 @@ const RecipeCarousel = () => {
         </div>
       </div>
 
-      <div
-        ref={sliderRef}
-        className='flex gap-6 overflow-x-auto scroll-smooth pb-4 snap-x snap-mandatory'
-      >
-        {filteredRecipes.map((recipe) => {
-          const isSaved = savedIds.has(recipe.id)
-          const handleFavouriteClick = (event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            toggleSaved(recipe.id)
-          }
+      <div className='relative rounded-[36px] border border-[#f2f2f2] bg-white/80 p-4 shadow-[0px_25px_60px_rgba(0,0,0,0.05)]'>
+        <div
+          key={`slide-${currentPage}`}
+          className='grid gap-6 transition-opacity duration-300 sm:grid-cols-2 lg:grid-cols-4'
+        >
+          {currentSlide.map((recipe) => {
+            const isSaved = savedIds.has(recipe.id)
+            const handleFavouriteClick = (event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              toggleSaved(recipe.id)
+            }
 
-          return (
-            <Link
-              key={recipe.id}
-              to={`/recipes/${recipe.id}`}
-              className='min-w-[250px] sm:min-w-[280px] lg:min-w-[300px] snap-start flex-shrink-0'
-            >
-              <div className='relative rounded-[32px] overflow-hidden shadow-md'>
-                <img
-                  src={recipe.image_url}
-                  alt={recipe.name}
-                  className='h-[420px] w-full object-cover transition-transform duration-300 hover:scale-105'
-                  loading='lazy'
-                  onError={(event) => {
-                    event.currentTarget.src =
-                      'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80'
-                  }}
-                />
-                
-                <button
-                  type='button'
-                  onClick={handleFavouriteClick}
-                  disabled={busyRecipe === recipe.id}
-                  className='absolute top-4 right-4 bg-white/90 rounded-full p-3 shadow-lg border border-white hover:bg-white transition'
-                  aria-label={isSaved ? 'Remove from saved recipes' : 'Save recipe'}
-                >
-                  {isSaved ? (
-                    <PiBookmarkSimpleFill className='text-[#EB7A30] text-xl' />
-                  ) : (
-                    <PiBookmarkSimple className='text-xl text-[#181818]' />
-                  )}
-                </button>
-              </div>
-              <div className='mt-4 space-y-3'>
-                <h3 className='text-xl font-semibold text-[#161616]'>{recipe.name}</h3>
-                <div className='flex items-center justify-between text-sm text-[#6b6b6b]'>
-                  <span>
-                    Prep {recipe.prep_time ?? '—'}m • Cook {recipe.cook_time ?? '—'}m
-                  </span>
-                  <span>❤️ {recipe.like_count ?? 0}</span>
+            return (
+              <Link
+                key={recipe.id}
+                to={`/recipes/${recipe.id}`}
+                className='flex flex-col rounded-[28px] border border-[#f0f0f0] bg-white shadow-[0px_18px_40px_rgba(0,0,0,0.05)] transition hover:-translate-y-1 hover:shadow-[0px_30px_70px_rgba(0,0,0,0.1)]'
+              >
+                <div className='relative overflow-hidden rounded-[24px]'>
+                  <img
+                    src={recipe.image_url}
+                    alt={recipe.name}
+                    className='h-56 w-full object-cover transition-transform duration-500 hover:scale-105'
+                    loading='lazy'
+                    onError={(event) => {
+                      event.currentTarget.src =
+                        'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80'
+                    }}
+                  />
+                  
+                  <button
+                    type='button'
+                    onClick={handleFavouriteClick}
+                    disabled={busyRecipe === recipe.id}
+                    className='absolute top-3 right-3 rounded-full border border-white bg-white/90 p-2.5 shadow-lg transition hover:bg-white'
+                    aria-label={isSaved ? 'Remove from saved recipes' : 'Save recipe'}
+                  >
+                    {isSaved ? (
+                      <PiBookmarkSimpleFill className='text-lg text-[#EB7A30]' />
+                    ) : (
+                      <PiBookmarkSimple className='text-lg text-[#181818]' />
+                    )}
+                  </button>
                 </div>
-                <button
-                  type='button'
-                  onClick={handleFavouriteClick}
-                  disabled={busyRecipe === recipe.id}
-                  className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full border text-sm font-semibold transition ${
-                    isSaved
-                      ? 'bg-[#EB7A30] border-[#EB7A30] text-white'
-                      : 'border-[#EB7A30] text-[#EB7A30] hover:bg-[#EB7A30]/10'
-                  }`}
-                >
-                  {isSaved ? (
-                    <>
-                      <PiHeartStraightFill className='text-base' />
-                      In favourites
-                    </>
-                  ) : (
-                    <>
-                      <PiHeartStraight className='text-base' />
-                      Add to favourites
-                    </>
-                  )}
-                </button>
-              </div>
-              
-            </Link>
-          )
-        })}
+                <div className='flex flex-1 flex-col space-y-3 px-4 pb-5 pt-4'>
+                  <h3 className='text-lg font-semibold text-[#161616] line-clamp-2'>{recipe.name}</h3>
+                  <div className='space-y-1 text-sm text-[#6b6b6b]'>
+                    <p>Prep {recipe.prep_time ?? '—'}m • Cook {recipe.cook_time ?? '—'}m</p>
+                    <p>❤️ {recipe.like_count ?? 0}</p>
+                  </div>
+                  <button
+                    type='button'
+                    onClick={handleFavouriteClick}
+                    disabled={busyRecipe === recipe.id}
+                    className={`mt-auto inline-flex w-full items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      isSaved
+                        ? 'border-[#EB7A30] bg-[#EB7A30] text-white'
+                        : 'border-[#EB7A30] text-[#EB7A30] hover:bg-[#EB7A30]/10'
+                    }`}
+                  >
+                    {isSaved ? (
+                      <>
+                        <PiHeartStraightFill className='text-base' />
+                        In favourites
+                      </>
+                    ) : (
+                      <>
+                        <PiHeartStraight className='text-base' />
+                        Add to favourites
+                      </>
+                    )}
+                  </button>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
       </div>
     </section>
   )
