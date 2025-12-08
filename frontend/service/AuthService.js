@@ -1,4 +1,4 @@
-import { AuthInstance } from './AxiosInstance';
+import { AuthInstance, AxiosInstance } from './AxiosInstance';
 
 // ✅ Helper: attach token if it exists
 function getAuthHeader() {
@@ -10,7 +10,7 @@ function getAuthHeader() {
 export async function registerUser(userData) {
     try {
         const response = await AuthInstance.post(
-            '/api/v1/auth/register',
+            '/register',
             {
                 email: userData.email,
                 name: userData.name,
@@ -40,7 +40,7 @@ export async function login(email, password) {
         formData.append('password', password);
 
         const response = await AuthInstance.post(
-            '/api/v1/auth/token',
+            '/token',
             formData, // Axios automatically handles this as the body
             {
                 headers: {
@@ -68,7 +68,7 @@ export async function getCurrentUser() {
         const accessToken = localStorage.getItem('access_token');
         if (!accessToken) return null;
 
-        const response = await AuthInstance.get('/api/v1/auth/me', {
+        const response = await AuthInstance.get('/me', {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
             },
@@ -87,7 +87,7 @@ export async function getLikedUser() {
         const accessToken = localStorage.getItem('access_token');
         if (!accessToken) return null;
 
-        const response = await AuthInstance.get('/api/v1/recipes/liked', {
+        const response = await AxiosInstance.get('/recipes/liked', {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
             },
@@ -105,7 +105,7 @@ export async function getLikedUser() {
 export async function refreshAccessToken() {
     try {
         const response = await AuthInstance.post(
-            '/api/v1/auth/refresh',
+            '/refresh',
             {}, // Axios needs a body, even if empty
             {
                 headers: {
@@ -131,7 +131,7 @@ export async function refreshAccessToken() {
 export async function logout() {
     try {
         await AuthInstance.post(
-            '/api/v1/auth/logout',
+            '/logout',
             {}, // Axios needs a body for POST, even if empty
             {
                 headers: {
@@ -150,7 +150,7 @@ export async function logout() {
 
 export async function fetchUserStats() {
     try {
-        const response = await AuthInstance.get('/users/stats', {
+        const response = await AxiosInstance.get('/users/stats', {
             headers: getAuthHeader(),
         });
         return response.data;
@@ -166,7 +166,7 @@ export async function deleteUserAccount(password) {
     }
 
     try {
-        const response = await AuthInstance.delete('/users/profile', {
+        const response = await AxiosInstance.delete('/users/profile', {
             headers: getAuthHeader(),
             data: { password },   // REQUIRED
         });
@@ -184,7 +184,7 @@ export async function updateUserProfile(updates = {}) {
     }
 
     try {
-        const response = await AuthInstance.put('/users/profile', updates, {
+        const response = await AxiosInstance.put('/users/profile', updates, {
             headers: getAuthHeader(),
         });
         return response.data;

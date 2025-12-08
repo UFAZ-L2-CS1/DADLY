@@ -150,10 +150,6 @@ async def get_recipe_feed(
                 # No valid pantry items to match - return random recipes
                 recipes = query.order_by(func.random()).limit(limit).all()
             else:
-                # Apply ingredient matching filter
-                if ingredient_conditions:
-                    query = query.filter(or_(*ingredient_conditions))
-                
                 # Add computed match_count column by summing all CASE expressions
                 # Chain CASE expressions with + operator to create proper SQL expression
                 match_count_expr = match_cases[0]
@@ -162,8 +158,8 @@ async def get_recipe_feed(
                 
                 query = query.add_columns(match_count_expr.label('match_count'))
                 
-                # Order by match count (highest first) and limit
-                query = query.order_by(match_count_expr.desc())
+                # Order by match count (highest first), then random for recipes with same match count
+                query = query.order_by(match_count_expr.desc(), func.random())
                 query = query.limit(limit)
                 
                 # Execute query - results are tuples of (Recipe, match_count)

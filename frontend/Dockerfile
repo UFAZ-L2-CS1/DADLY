@@ -25,9 +25,11 @@ FROM node:20-alpine AS build
 
 # Accept build arguments for Vite environment variables
 ARG VITE_BASE_URL
+ARG VITE_AUTH_URL
 
 # Set them as environment variables for the build
 ENV VITE_BASE_URL=$VITE_BASE_URL
+ENV VITE_AUTH_URL=$VITE_AUTH_URL
 
 WORKDIR /app
 

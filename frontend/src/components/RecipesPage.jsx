@@ -193,7 +193,7 @@ const RecipesPage = ({ limit = 12 }) => {
       }
 
       try {
-        const response = await fetchLikedRecipes(200);
+        const response = await fetchLikedRecipes(100);
         if (cancelled) return;
         const ids = new Set(
           (response?.recipes || []).map((recipe) => recipe.id).filter(Boolean)

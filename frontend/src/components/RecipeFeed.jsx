@@ -167,7 +167,7 @@ const RecipeFeed = ({ limit = 12 }) => {
         return
       }
       try {
-        const response = await fetchLikedRecipes(200)
+        const response = await fetchLikedRecipes(100)
         if (!cancelled) {
           setLikedIds(
             new Set((response?.recipes || []).map((recipe) => recipe.id).filter(Boolean))
