@@ -276,21 +276,7 @@ console.log('Rendering RecipesPage', { loading, error, allRecipes, filteredRecip
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Ingredient</label>
-                <select
-                  value={selectedIngredient}
-                  onChange={(event) => updateIngredientFilter(event.target.value)}
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg bg-white outline-none focus:border-[#E64C15]"
-                >
-                  <option value="">All Ingredients</option>
-                  {availableIngredients.map((ingredient) => (
-                    <option key={ingredient} value={ingredient}>
-                      {formatLabel(ingredient)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+ 
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Difficulty</label>

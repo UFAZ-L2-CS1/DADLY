@@ -132,3 +132,39 @@ export async function savePantryIngredientsBulk(ingredientNames = []) {
     throw err;
   }
 }
+
+export async function fetchPantryIngredients() {
+  try {
+    const response = await AxiosInstance.get('/pantry/', {
+      headers: authHeaders(),
+    });
+    return response.data;
+  } catch (err) {
+    console.error('Error fetching pantry ingredients:', err);
+    throw err;
+  }
+}
+
+export async function deletePantryIngredient(ingredientId) {
+  try {
+    const response = await AxiosInstance.delete(`/pantry/${ingredientId}`, {
+      headers: authHeaders(),
+    });
+    return response.data;
+  } catch (err) {
+    console.error(`Error deleting ingredient ${ingredientId}:`, err);
+    throw err;
+  }
+}
+
+export async function clearPantry() {
+  try {
+    const response = await AxiosInstance.delete('/pantry/', {
+      headers: authHeaders(),
+    });
+    return response.data;
+  } catch (err) {
+    console.error('Error clearing pantry:', err);
+    throw err;
+  }
+}

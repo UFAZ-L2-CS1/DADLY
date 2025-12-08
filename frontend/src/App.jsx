@@ -11,6 +11,7 @@ import Register from './pages/Register.jsx';
 import MainLayout from './layout/MainLayout.jsx';
 import UserPage from './pages/UserPage.jsx';
 import RecipesPage from './components/RecipesPage.jsx';
+import Pantry from './pages/Pantry.jsx';
 function App() {
   return (
     <ErrorBoundary>
@@ -23,6 +24,7 @@ function App() {
             <Route path='diet-plans' element={<DietPlans />} />
             <Route path='about-us' element={<About />} />
             <Route path="/recipes" element={<RecipesPage />} />
+            <Route path='pantry' element={<Pantry />} />
             <Route path='user/:userId/:listType' element={<UserPage />} />
           </Route>
           <Route path='/auth/token' element={<SignIn />} />
