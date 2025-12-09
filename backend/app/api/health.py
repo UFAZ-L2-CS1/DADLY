@@ -8,7 +8,7 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-@router.get("/health", tags=["Health"])
+@router.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
 async def health_check():
     baku_tz = Config.get_timezone() 
     baku_time = datetime.now(tz=baku_tz).strftime("%Y-%m-%d %H:%M:%S")
