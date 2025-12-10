@@ -52,7 +52,7 @@
 │                 │         │                 │         │                 │
 │  React Frontend │ ◄─────► │  FastAPI        │ ◄─────► │  MySQL 8.0      │
 │  (Vite + Tailwind)        │  Backend        │         │  Database       │
-│  Port: 5173/8080│         │  Port: 8000     │         │  Port: 3306     │
+│  Port: 5173/8080│         │  Port: 8000     │         │  Port: xxxx     │
 │                 │         │                 │         │                 │
 └─────────────────┘         └─────────────────┘         └─────────────────┘
         │                           │
