@@ -20,7 +20,7 @@
 - **Recipe Details**: Full ingredients, instructions, prep/cook time, difficulty level
 
 ### For Developers
-- **Modern Stack**: FastAPI backend + React 19 frontend with TypeScript-ready architecture
+- **Modern Stack**: FastAPI backend + React 19 frontend with JavaScript-ready architecture
 - **Database**: MySQL 8.0 with SQLAlchemy ORM and Alembic migrations
 - **Authentication**: JWT-based auth with access + refresh tokens, secure token blacklist
 - **Docker-First**: Complete docker-compose setup for local development
