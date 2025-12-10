@@ -1,0 +1,12 @@
+@import "tailwindcss";
+.stack-sans-text{
+  font-family: "Stack Sans Text", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+.lilita-one-regular {
+  font-family: "Lilita One";
+  font-weight: 400;
+  font-style: normal;
+}

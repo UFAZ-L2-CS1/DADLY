@@ -6,10 +6,17 @@ backend/dist/
 backend/wheels/
 backend/*.egg-info
 
-# Virtual environments
+# Virtual env   ironments
 backend/.venv/
 
 # IDE files
 .vscode/
 .idea/
+
+.github/copilot*
+
+.env
+
+frontend/.github/
+
 

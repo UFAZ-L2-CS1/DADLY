@@ -55,6 +55,37 @@ class UserResponse(UserBase):
         from_attributes = True
 
 
+class UserUpdateRequest(BaseModel):
+    """Request model for updating user profile"""
+    name: Optional[str] = None
+    dietary_type: Optional[DietaryType] = None
+    allergies: Optional[str] = None
+    
+    @field_validator("name")
+    @staticmethod
+    def validate_name(v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.strip()
+            if not v:
+                raise ValueError("Name cannot be empty")
+            if len(v) > 100:
+                raise ValueError("Name must not exceed 100 characters")
+        return v
+
+
+class UserDeleteRequest(BaseModel):
+    """Request model for account deletion (requires password confirmation)"""
+    password: str
+
+
+class UserStatsResponse(BaseModel):
+    """Response model for user statistics"""
+    total_recipes_liked: int
+    total_pantry_items: int
+    account_created_at: datetime
+    days_active: int
+
+
 # Token Models
 class Token(BaseModel):
     access_token: str
@@ -97,25 +128,37 @@ class UserRecipeInteraction(BaseModel):
 
 
 # Pantry Management
-class PantryItem(BaseModel):
-    user_id: int
+class PantryItemResponse(BaseModel):
+    """Response model for pantry items"""
+    id: int
     ingredient_name: str
     quantity: Optional[str] = None
     added_at: datetime
 
-
-# API Response Models (COMMENTED OUT FOR MVP - UNCOMMENT LATER IF NEEDED)
-# class RecipeMatch(BaseModel):
-#     """Recipe with match percentage based on available ingredients"""
-#
-#     recipe: RecipeResponse
-#     match_percentage: float
-#     missing_ingredients: List[str]
+    class Config:
+        from_attributes = True
 
 
-# class SwipeResponse(BaseModel):
-#     """Response after swiping on a recipe"""
-#
-#     recipe_id: int
-#     liked: bool
-#     next_recipe: Optional[RecipeResponse] = None
+class AddIngredientRequest(BaseModel):
+    """Request model for adding a single ingredient"""
+    ingredient_name: str
+    quantity: Optional[str] = None
+    
+    @field_validator("ingredient_name")
+    @staticmethod
+    def validate_ingredient_name(v: str) -> str:
+        v = v.strip().lower() 
+        if not v:
+            raise ValueError("Ingredient name cannot be empty")
+        if len(v) > 100:
+            raise ValueError("Ingredient name must not exceed 100 characters")
+        if v.isdigit():
+            raise ValueError("Ingredient name cannot be purely numeric")
+        if not any(c.isalnum() for c in v):
+            raise ValueError("Ingredient name must contain at least one alphanumeric character")
+        return v
+
+
+class BulkAddRequest(BaseModel):
+    """Request model for bulk adding ingredients"""
+    ingredients: List[AddIngredientRequest]

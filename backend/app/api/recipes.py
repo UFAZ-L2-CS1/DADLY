@@ -7,21 +7,19 @@ import json
 from datetime import datetime
 from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Query, Depends
-from sqlalchemy import func, or_, update
+from sqlalchemy import func, or_, update, case
 from sqlalchemy.exc import IntegrityError
 
 from app.schemas.schemas import RecipeResponse
 from app.db.database import db_dependency
 from app.models.models import Recipe, User, UserRecipeInteraction, PantryItem
 from app.config.config import get_logger
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, get_current_user_optional
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 # Constants for feed optimization and security
-FETCH_MULTIPLIER = 10  # Fetch 10x the requested limit to allow scoring/sorting before final selection
-MAX_FETCH_RECIPES = 500  # Absolute cap to prevent memory exhaustion
 MAX_EXCLUDE_IDS = 100  # Maximum number of excluded recipe IDs to prevent abuse
 MAX_EXCLUDE_LENGTH = 1000  # Maximum length of exclude parameter string
 
@@ -42,23 +40,37 @@ def create_minimal_recipe_response(recipe: Recipe) -> dict:
 
 @router.get("/feed", tags=["Recipes"])
 async def get_recipe_feed(
-    current_user: Annotated[User, Depends(get_current_user)],
     db: db_dependency,
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)] = None,
     limit: int = Query(20, ge=1, le=50),
     exclude: Optional[str] = Query(None, description="Comma-separated recipe IDs to exclude (session-based)")
 ):
     """
     Get recipe feed for swiping interface
     
-    Returns recipes filtered by:
+    **Guest users (no authentication):**
+    - Returns random recipes
+    - No personalization
+    - Cannot use 'exclude' parameter
+    
+    **Authenticated users (with login):**
     - Excludes already liked recipes (permanent)
-    - Excludes session-excluded recipes (temporary)
+    - Excludes session-excluded recipes (temporary via 'exclude' parameter)
     - Prioritizes recipes matching user's pantry items if available
     
     Returns minimal recipe data for performance.
     Use GET /recipes/{id} for full details.
     """
     try:
+        # ===== GUEST USER PATH (no authentication) =====
+        if current_user is None:
+            # Simple random feed for guests - no personalization
+            recipes = db.query(Recipe).order_by(func.random()).limit(limit).all()
+            result = [create_minimal_recipe_response(recipe) for recipe in recipes]
+            logger.info(f"Returned {len(result)} random recipes for guest user")
+            return result
+        
+        # ===== AUTHENTICATED USER PATH (with login) ====
         # Get liked recipe IDs (permanent exclusion)
         liked_recipe_ids = db.query(UserRecipeInteraction.recipe_id).filter(
             UserRecipeInteraction.user_id == current_user.id,
@@ -124,8 +136,8 @@ async def get_recipe_feed(
                 
                 # Build CASE expression: 1 if match, 0 otherwise
                 match_cases.append(
-                    func.case(
-                        (Recipe.ingredients.ilike(pattern, escape='\\'), 1),
+                    case(
+                        (Recipe.ingredients.ilike(pattern, escape='\\'), 1),  # Positional tuple
                         else_=0
                     )
                 )
@@ -133,24 +145,29 @@ async def get_recipe_feed(
                 # Also build OR condition for filtering
                 ingredient_conditions.append(Recipe.ingredients.ilike(pattern, escape='\\'))
             
-            # Apply ingredient matching filter
-            if ingredient_conditions:
-                query = query.filter(or_(*ingredient_conditions))
-            
-            # Add computed match_count column by summing all CASE expressions
-            match_count_expr = sum(match_cases)
-            query = query.add_columns(match_count_expr.label('match_count'))
-            
-            # Order by match count (highest first) and limit
-            query = query.order_by(func.desc('match_count'))
-            query = query.limit(limit)
-            
-            # Execute query - results are tuples of (Recipe, match_count)
-            results = query.all()
-            recipes = [result[0] for result in results]
+            # Check if we have valid ingredients to match
+            if not match_cases:
+                # No valid pantry items to match - return random recipes
+                recipes = query.order_by(func.random()).limit(limit).all()
+            else:
+                # Add computed match_count column by summing all CASE expressions
+                # Chain CASE expressions with + operator to create proper SQL expression
+                match_count_expr = match_cases[0]
+                for case_expr in match_cases[1:]:
+                    match_count_expr = match_count_expr + case_expr
+                
+                query = query.add_columns(match_count_expr.label('match_count'))
+                
+                # Order by match count (highest first), then random for recipes with same match count
+                query = query.order_by(match_count_expr.desc(), func.random())
+                query = query.limit(limit)
+                
+                # Execute query - results are tuples of (Recipe, match_count)
+                results = query.all()
+                recipes = [result[0] for result in results]
         else:
             # No pantry items - return random recipes
-            recipes = query.order_by(func.rand()).limit(limit).all()
+            recipes = query.order_by(func.random()).limit(limit).all()
         
         # Convert to minimal response
         result = [create_minimal_recipe_response(recipe) for recipe in recipes]
