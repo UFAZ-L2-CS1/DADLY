@@ -1,6 +1,7 @@
 # 🍳 DADLY - Recipe Discovery Platform
 
-![Build Status](https://github.com/UFAZ-L2-CS1/DADLY/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/UFAZ-L2-CS1/DADLY/actions/workflows/ci.yml/badge.svg)
+![CD](https://github.com/UFAZ-L2-CS1/DADLY/actions/workflows/cd.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 ![React](https://img.shields.io/badge/react-19.1-blue)
