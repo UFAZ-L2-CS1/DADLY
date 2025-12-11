@@ -7,6 +7,8 @@
 ![React](https://img.shields.io/badge/react-19.1-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.119+-green)
 
+**🌐 Live Demo**: [https://dadly.onrender.com](https://dadly.onrender.com)
+
 **DADLY** is a modern, full-stack recipe discovery web application featuring a Tinder-style swipe interface. Built for home cooks and food enthusiasts who want to discover recipes, save favorites, and get personalized recommendations based on ingredients they already have in their pantry.
 
 ## 🌟 Key Features
