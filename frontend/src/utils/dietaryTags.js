@@ -28,6 +28,33 @@ const EGG_HONEY_KEYWORDS = ['egg', 'yolk', 'honey', 'mayonnaise'];
 
 const GLUTEN_KEYWORDS = ['wheat', 'flour', 'bread', 'pasta', 'soy sauce', 'barley'];
 
+const splitTextList = (text = '') =>
+  text
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const normalizeIngredients = (ingredients) => {
+  if (!ingredients) return [];
+  if (Array.isArray(ingredients)) return ingredients;
+  if (typeof ingredients === 'string') {
+    const trimmed = ingredients.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch (err) {
+        // If parsing fails, fall back to newline/comma splitting
+      }
+    }
+    return splitTextList(trimmed);
+  }
+  return [];
+};
+
 const normalizeList = (items = []) =>
   items
     .filter(Boolean)
@@ -37,7 +64,7 @@ export function deriveDietaryTags(recipe) {
   const sources = [
     recipe?.name,
     recipe?.description,
-    ...(Array.isArray(recipe?.ingredients) ? recipe.ingredients : []),
+    ...normalizeIngredients(recipe?.ingredients),
   ];
   const text = normalizeList(sources).join(' ');
 

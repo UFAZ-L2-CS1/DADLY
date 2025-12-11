@@ -10,3 +10,27 @@
   font-weight: 400;
   font-style: normal;
 }
+
+@keyframes auth-float {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(8px, -12px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.auth-floating {
+  animation: auth-float 12s ease-in-out infinite;
+}
+
+.auth-floating.delay-1 {
+  animation-delay: 3s;
+}
+
+.auth-floating.delay-2 {
+  animation-delay: 6s;
+}

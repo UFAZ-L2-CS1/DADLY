@@ -44,7 +44,7 @@ const RecipeCarousel = () => {
     }
     return chunks
   }, [filteredRecipes])
-
+  const isEmpty = filteredRecipes.length === 0
   const totalPages = Math.max(1, slides.length || 1)
   const currentSlide = slides[currentPage - 1] || []
 
@@ -181,10 +181,6 @@ const RecipeCarousel = () => {
     )
   }
 
-  if (!filteredRecipes.length) {
-    return null
-  }
-
   return (
     <section className='py-16 space-y-10'>
       <div className='flex flex-col items-center gap-4 text-center'>
@@ -241,69 +237,81 @@ const RecipeCarousel = () => {
       </div>
 
       <div className='relative rounded-[36px] border border-[#f2f2f2] bg-white/80 p-4 shadow-[0px_25px_60px_rgba(0,0,0,0.05)]'>
-        <div
-          key={`slide-${currentPage}`}
-          className='grid gap-6 transition-opacity duration-300 sm:grid-cols-2 lg:grid-cols-4'
-        >
-          {currentSlide.map((recipe) => {
-            const isSaved = savedIds.has(recipe.id)
-            const handleFavouriteClick = (event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              toggleSaved(recipe.id)
-            }
+        {isEmpty ? (
+          <div className='flex flex-col items-center justify-center gap-4 py-20 text-center text-[#6b6b6b]'>
+            <p>We don&apos;t have any meals for this filter yet.</p>
+            <button
+              onClick={() => setActiveFilter('all')}
+              className='rounded-full border border-[#EB7A30] px-5 py-2 text-sm font-semibold text-[#EB7A30] transition hover:bg-[#EB7A30] hover:text-white'
+            >
+              Go to all meals
+            </button>
+          </div>
+        ) : (
+          <div
+            key={`slide-${currentPage}`}
+            className='grid gap-6 transition-opacity duration-300 sm:grid-cols-2 lg:grid-cols-4'
+          >
+            {currentSlide.map((recipe) => {
+              const isSaved = savedIds.has(recipe.id)
+              const handleFavouriteClick = (event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                toggleSaved(recipe.id)
+              }
 
-            return (
-              <Link
-                key={recipe.id}
-                to={`/recipes/${recipe.id}`}
-                className='flex flex-col rounded-[28px] border border-[#f0f0f0] bg-white shadow-[0px_18px_40px_rgba(0,0,0,0.05)] transition hover:-translate-y-1 hover:shadow-[0px_30px_70px_rgba(0,0,0,0.1)]'
-              >
-                <div className='relative overflow-hidden rounded-[24px]'>
-                  <img
-                    src={recipe.image_url}
-                    alt={recipe.name}
-                    className='h-56 w-full object-cover transition-transform duration-500 hover:scale-105'
-                    loading='lazy'
-                    onError={(event) => {
-                      event.currentTarget.src =
-                        'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80'
-                    }}
-                  />
-                </div>
-                <div className='flex flex-1 flex-col space-y-3 px-4 pb-5 pt-4'>
-                  <h3 className='text-lg font-semibold text-[#161616] line-clamp-2'>{recipe.name}</h3>
-                  <div className='space-y-1 text-sm text-[#6b6b6b]'>
-                    <p>Prep {recipe.prep_time ?? '—'}m • Cook {recipe.cook_time ?? '—'}m</p>
-                    <p>❤️ {recipe.like_count ?? 0}</p>
+              return (
+                <Link
+                  key={recipe.id}
+                  to={`/recipes/${recipe.id}`}
+                  className='flex flex-col rounded-[28px] border border-[#f0f0f0] bg-white shadow-[0px_18px_40px_rgba(0,0,0,0.05)] transition hover:-translate-y-1 hover:shadow-[0px_30px_70px_rgba(0,0,0,0.1)]'
+                >
+                  <div className='relative overflow-hidden rounded-[24px]'>
+                    <img
+                      src={recipe.image_url}
+                      alt={recipe.name}
+                      className='h-56 w-full object-cover transition-transform duration-500 hover:scale-105'
+                      loading='lazy'
+                      onError={(event) => {
+                        event.currentTarget.src =
+                          'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80'
+                      }}
+                    />
                   </div>
-                  <button
-                    type='button'
-                    onClick={handleFavouriteClick}
-                    disabled={busyRecipe === recipe.id}
-                    className={`mt-auto inline-flex w-full items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      isSaved
-                        ? 'border-[#EB7A30] bg-[#EB7A30] text-white'
-                        : 'border-[#EB7A30] text-[#EB7A30] hover:bg-[#EB7A30]/10'
-                    }`}
-                  >
-                    {isSaved ? (
-                      <>
-                        <PiHeartStraightFill className='text-base' />
-                        Liked
-                      </>
-                    ) : (
-                      <>
-                        <PiHeartStraight className='text-base' />
-                        Like recipe
-                      </>
-                    )}
-                  </button>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
+                  <div className='flex flex-1 flex-col space-y-3 px-4 pb-5 pt-4'>
+                    <h3 className='text-lg font-semibold text-[#161616] line-clamp-2'>{recipe.name}</h3>
+                    <div className='space-y-1 text-sm text-[#6b6b6b]'>
+                      <p>Prep {recipe.prep_time ?? '—'}m • Cook {recipe.cook_time ?? '—'}m</p>
+                      <p>❤️ {recipe.like_count ?? 0}</p>
+                    </div>
+                    <button
+                      type='button'
+                      onClick={handleFavouriteClick}
+                      disabled={busyRecipe === recipe.id}
+                      className={`mt-auto inline-flex w-full items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                        isSaved
+                          ? 'border-[#EB7A30] bg-[#EB7A30] text-white'
+                          : 'border-[#EB7A30] text-[#EB7A30] hover:bg-[#EB7A30]/10'
+                      }`}
+                    >
+                      {isSaved ? (
+                        <>
+                          <PiHeartStraightFill className='text-base' />
+                          Liked
+                        </>
+                      ) : (
+                        <>
+                          <PiHeartStraight className='text-base' />
+                          Like recipe
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </div>
     </section>
   )
