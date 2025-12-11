@@ -383,7 +383,7 @@ const primaryButton = {
   padding: '10px 18px',
   borderRadius: 999,
   border: 'none',
-  background: '#EB7A30',
+  background: '#07e912ff',
   color: '#fff',
   fontWeight: 600,
   cursor: 'pointer',
