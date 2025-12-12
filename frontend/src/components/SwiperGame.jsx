@@ -243,115 +243,188 @@ export default function SwiperGame({ limit = 16 }) {
     </div>
   )
 
-  return (
-    <div style={wrapper}>
-      <div style={hud}>
-        <p style={statusText}>{status}</p>
-        <div style={scoreboard}>
-          <div style={scoreItem}>
-            <span style={scoreLabel}>Remaining</span>
-            <strong style={scoreValue}>{cards.length}</strong>
-          </div>
-          <div style={scoreItem}>
-            <span style={scoreLabel}>Eliminated</span>
-            <strong style={scoreValue}>{swipeCount}</strong>
-          </div>
-          <div style={scoreItem}>
-            <span style={scoreLabel}>Progress</span>
-            <strong style={scoreValue}>{progress}%</strong>
-          </div>
-        </div>
-        <div style={progressTrack}>
-          <div style={{ ...progressBar, width: `${progress}%` }} />
-        </div>
-        <div style={buttonRow}>
-          <button
-            type='button'
-            style={{ ...ghostButton, opacity: deck.length ? 1 : 0.5 }}
-            onClick={handleReset}
-            disabled={!deck.length}
-          >
-            Reset round
-          </button>
-          <button
-            type='button'
-            style={{ ...primaryButton, opacity: loading ? 0.7 : 1 }}
-            onClick={loadDeck}
-            disabled={loading}
-          >
-            {loading ? 'Loading...' : 'New challengers'}
-          </button>
-        </div>
-      </div>
+  const roundSize = deck.length || limit
 
-      <div style={isMobile ? gameStageResponsive : gameStage}>
-        {loading && renderLoading()}
-        {!loading && error && renderError()}
-        {!loading && !error && cards.length > 0 && (
-          <>
-            {renderCards()}
-            {winner && fireworks && (
-              <MotionDiv
-                style={sparkles}
-                animate={{ scale: [1, 1.2, 1], opacity: [1, 0.6, 1] }}
-                transition={{ repeat: Infinity, duration: 1.2 }}
-              >
-                ✨ 🎉 ✨
-              </MotionDiv>
-            )}
-          </>
-        )}
-        {!loading && !error && !cards.length && deck.length === 0 && (
-          <p style={helperText}>No dishes available. Try loading a new batch.</p>
-        )}
+  return (
+    <div style={shell}>
+      <div style={glowOne} />
+      <div style={glowTwo} />
+      <div style={wrapper}>
+        <div style={hud}>
+          <p style={statusText}>
+            <span role='img' aria-label='spark'>
+              ⚡
+            </span>{' '}
+            {status}
+          </p>
+          <div style={deckBadge}>Round of {roundSize} dishes</div>
+          <div style={scoreboard}>
+            <div style={scoreItem}>
+              <span style={scoreLabel}>Remaining</span>
+              <strong style={scoreValue}>{cards.length}</strong>
+            </div>
+            <div style={scoreItem}>
+              <span style={scoreLabel}>Eliminated</span>
+              <strong style={scoreValue}>{swipeCount}</strong>
+            </div>
+            <div style={scoreItem}>
+              <span style={scoreLabel}>Progress</span>
+              <strong style={scoreValue}>{progress}%</strong>
+            </div>
+          </div>
+          <div style={progressTrack}>
+            <div style={{ ...progressBar, width: `${progress}%` }} />
+          </div>
+          <div style={buttonRow}>
+            <button
+              type='button'
+              style={{ ...ghostButton, opacity: deck.length ? 1 : 0.5 }}
+              onClick={handleReset}
+              disabled={!deck.length}
+            >
+              Reset round
+            </button>
+            <button
+              type='button'
+              style={{ ...primaryButton, opacity: loading ? 0.7 : 1 }}
+              onClick={loadDeck}
+              disabled={loading}
+            >
+              {loading ? 'Loading...' : 'New challengers'}
+            </button>
+          </div>
+          <div style={instructionRow}>
+            <span style={instructionChip}>Swipe left → skip a dish</span>
+            <span style={instructionChip}>Swipe right → keep it in play</span>
+            <span style={instructionChip}>Last card standing wins</span>
+          </div>
+        </div>
+
+        <div style={isMobile ? gameStageResponsive : gameStage}>
+          {loading && renderLoading()}
+          {!loading && error && renderError()}
+          {!loading && !error && cards.length > 0 && (
+            <>
+              {renderCards()}
+              {winner && fireworks && (
+                <MotionDiv
+                  style={sparkles}
+                  animate={{ scale: [1, 1.2, 1], opacity: [1, 0.6, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.2 }}
+                >
+                  ✨ 🎉 ✨
+                </MotionDiv>
+              )}
+            </>
+          )}
+          {!loading && !error && !cards.length && deck.length === 0 && (
+            <p style={helperText}>No dishes available. Try loading a new batch.</p>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
+const shell = {
+  position: 'relative',
+  width: '100%',
+  padding: '60px 0',
+  borderRadius: 48,
+  background: 'radial-gradient(circle at top, rgba(255,210,175,0.55), rgba(255,248,239,0.95))',
+  overflow: 'hidden',
+  border: '1px solid rgba(255,255,255,0.2)',
+  boxShadow: '0 35px 120px rgba(235,160,105,0.35)',
+}
+
+const glowOne = {
+  position: 'absolute',
+  top: -120,
+  left: '8%',
+  width: 260,
+  height: 260,
+  background: 'rgba(255,200,161,0.7)',
+  filter: 'blur(130px)',
+  borderRadius: '50%',
+}
+
+const glowTwo = {
+  position: 'absolute',
+  bottom: -110,
+  right: '6%',
+  width: 300,
+  height: 300,
+  background: 'rgba(255,183,205,0.55)',
+  filter: 'blur(150px)',
+  borderRadius: '50%',
+}
+
 const wrapper = {
   width: '100%',
-  maxWidth: 980,
+  maxWidth: 1040,
   margin: '0 auto',
-  padding: '40px 20px',
+  padding: '40px 28px 60px',
+  position: 'relative',
+  zIndex: 2,
+  borderRadius: 40,
+  background: 'rgba(255,255,255,0.8)',
+  backdropFilter: 'blur(24px)',
+  border: '1px solid rgba(255,255,255,0.4)',
+  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.25)',
 }
 
 const hud = {
   textAlign: 'center',
-  marginBottom: 24,
-  color: '#EB7A30',
+  marginBottom: 32,
+  color: '#8a502d',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 16,
 }
 
 const statusText = {
   fontSize: 18,
   fontWeight: 600,
-  marginBottom: 16,
+  letterSpacing: 0.5,
+}
+
+const deckBadge = {
+  alignSelf: 'center',
+  padding: '6px 18px',
+  borderRadius: 999,
+  background: 'rgba(255,215,188,0.9)',
+  color: '#9a562b',
+  fontSize: 12,
+  letterSpacing: 3,
+  textTransform: 'uppercase',
 }
 
 const scoreboard = {
   display: 'flex',
   justifyContent: 'center',
-  gap: 24,
-  marginBottom: 16,
+  gap: 20,
+  flexWrap: 'wrap',
 }
 
 const scoreItem = {
-  background: 'rgba(255, 255, 255, 0.08)',
-  padding: '12px 18px',
-  borderRadius: 16,
-  minWidth: 120,
+  background: 'linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,236,226,0.9))',
+  padding: '14px 22px',
+  borderRadius: 18,
+  minWidth: 140,
+  border: '1px solid rgba(255,196,161,0.45)',
+  boxShadow: '0 12px 28px rgba(235,160,105,0.25)',
 }
 
 const scoreLabel = {
   display: 'block',
   fontSize: 12,
   textTransform: 'uppercase',
-  letterSpacing: 1,
+  letterSpacing: 3,
   opacity: 0.7,
 }
 
 const scoreValue = {
-  fontSize: 24,
+  fontSize: 26,
   fontWeight: 700,
   marginTop: 6,
 }
@@ -359,86 +432,111 @@ const scoreValue = {
 const progressTrack = {
   width: '100%',
   maxWidth: 480,
-  height: 8,
-  background: 'rgba(255,255,255,0.1)',
+  height: 10,
+  background: 'rgba(255,210,185,0.5)',
   borderRadius: 999,
-  margin: '0 auto 16px',
+  margin: '0 auto',
   overflow: 'hidden',
+  border: '1px solid rgba(255,196,161,0.4)',
 }
 
 const progressBar = {
   height: '100%',
   borderRadius: 999,
-  background: 'linear-gradient(90deg, #EB7A30, #f4c095)',
-  transition: 'width 0.3s ease',
+  background: 'linear-gradient(90deg, #ffcea8, #f49b6b, #EB7A30)',
+  transition: 'width 0.35s ease',
+  boxShadow: '0 6px 20px rgba(235,122,48,0.35)',
 }
 
 const buttonRow = {
   display: 'flex',
   justifyContent: 'center',
-  gap: 12,
+  gap: 14,
+  marginTop: 12,
+}
+
+const instructionRow = {
+  display: 'flex',
+  justifyContent: 'center',
+  flexWrap: 'wrap',
+  gap: 10,
+  marginTop: 18,
+}
+
+const instructionChip = {
+  fontSize: 12,
+  letterSpacing: 1,
+  textTransform: 'uppercase',
+  padding: '6px 14px',
+  borderRadius: 999,
+  border: '1px solid rgba(255,184,147,0.6)',
+  color: '#a35a2f',
+  background: 'rgba(255,238,229,0.9)',
 }
 
 const primaryButton = {
-  padding: '10px 18px',
+  padding: '10px 22px',
   borderRadius: 999,
   border: 'none',
-  background: '#EB7A30',
-  color: '#fff',
-  fontWeight: 600,
+  background: 'linear-gradient(120deg, #ffb48d, #EB7A30)',
+  color: '#2d1306',
+  fontWeight: 700,
   cursor: 'pointer',
+  boxShadow: '0 15px 30px rgba(235,122,48,0.2)',
 }
 
 const ghostButton = {
-  padding: '10px 18px',
+  padding: '10px 20px',
   borderRadius: 999,
-  border: '1px solid rgba(255,255,255,0.4)',
+  border: '1px solid rgba(237,147,92,0.5)',
   background: 'transparent',
-  color: '#fff',
+  color: '#a35a2f',
   fontWeight: 600,
   cursor: 'pointer',
 }
 
 const gameStage = {
-  width: 820,
+  width: 860,
   maxWidth: '100%',
-  height: 520,
-  background:
-    'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(235,122,48,0.15)) border-box',
-  borderRadius: 24,
+  height: 540,
+  background: 'linear-gradient(135deg, rgba(255,250,244,0.95), rgba(255,224,204,0.9))',
+  borderRadius: 32,
   position: 'relative',
   overflow: 'hidden',
   margin: '0 auto',
-  border: '1px solid rgba(255,255,255,0.2)',
-  boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
+  border: '1px solid rgba(255,196,161,0.4)',
+  boxShadow: '0 30px 90px rgba(237,168,116,0.35)',
+  backdropFilter: 'blur(6px)',
 }
 
 const gameStageResponsive = {
   width: '100%',
   maxWidth: '100%',
   height: 700,
-  background:
-    'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(235,122,48,0.15)) border-box',
-  borderRadius: 24,
+  background: 'linear-gradient(135deg, rgba(255,250,244,0.95), rgba(255,224,204,0.9))',
+  borderRadius: 32,
   position: 'relative',
   overflow: 'hidden',
   margin: '0 auto',
-  border: '1px solid rgba(255,255,255,0.2)',
-  boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
+  border: '1px solid rgba(255,196,161,0.4)',
+  boxShadow: '0 30px 90px rgba(237,168,116,0.35)',
+  backdropFilter: 'blur(6px)',
 }
 
 const box = {
   width: 320,
-  height: 400,
-  borderRadius: 24,
+  height: 420,
+  borderRadius: 30,
   cursor: 'grab',
   overflow: 'hidden',
-  boxShadow: '0 30px 60px rgba(0,0,0,0.35)',
+  boxShadow: '0 30px 65px rgba(237,168,116,0.35)',
+  border: '1px solid rgba(255,196,161,0.45)',
+  background: 'linear-gradient(135deg, rgba(255,255,255,0.75), rgba(255,229,209,0.8))',
 }
 
 const mobileBox = {
   width: 280,
-  height: 280,
+  height: 320,
 }
 
 const cardContent = {
@@ -456,23 +554,22 @@ const cardImage = {
 const cardOverlay = {
   position: 'absolute',
   inset: 0,
-  background:
-    'linear-gradient(180deg, rgba(0,0,0,0.1) 30%, rgba(0,0,0,0.8) 100%)',
+  background: 'linear-gradient(180deg, rgba(255,255,255,0) 40%, rgba(0,0,0,0.6) 100%)',
 }
 
 const cardInfo = {
   position: 'absolute',
   left: 20,
   right: 20,
-  bottom: 20,
+  bottom: 22,
   color: '#fff',
 }
 
 const cardMeta = {
   fontSize: 12,
-  letterSpacing: 1,
+  letterSpacing: 2,
   textTransform: 'uppercase',
-  opacity: 0.85,
+  opacity: 0.9,
 }
 
 const cardTitle = {
@@ -487,8 +584,8 @@ const winnerBadge = {
   right: 18,
   padding: '6px 14px',
   borderRadius: 999,
-  background: 'rgba(235,122,48,0.9)',
-  color: '#fff',
+  background: 'linear-gradient(120deg, #ffe0b7, #EB7A30)',
+  color: '#2f1307',
   fontSize: 12,
   textTransform: 'uppercase',
   letterSpacing: 1,
@@ -502,14 +599,14 @@ const loadingStage = {
   width: '100%',
   height: '100%',
   gap: 16,
-  color: '#fff',
+  color: '#9a562b',
 }
 
 const loadingSpinner = {
   width: 64,
   height: 64,
   borderRadius: '50%',
-  border: '4px solid rgba(255,255,255,0.2)',
+  border: '4px solid rgba(255,196,161,0.4)',
   borderTopColor: '#EB7A30',
 }
 
@@ -521,7 +618,7 @@ const helperText = {
 const errorText = {
   fontSize: 16,
   fontWeight: 600,
-  color: '#ffd5c0',
+  color: '#d55a2a',
 }
 
 const sparkles = {
@@ -529,6 +626,6 @@ const sparkles = {
   left: '50%',
   top: '20%',
   transform: 'translateX(-50%)',
-  fontSize: 36,
+  fontSize: 40,
   pointerEvents: 'none',
 }
