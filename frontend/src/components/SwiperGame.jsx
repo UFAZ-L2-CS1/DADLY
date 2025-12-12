@@ -252,9 +252,7 @@ export default function SwiperGame({ limit = 16 }) {
       <div style={wrapper}>
         <div style={hud}>
           <p style={statusText}>
-            <span role='img' aria-label='spark'>
-              ⚡
-            </span>{' '}
+            
             {status}
           </p>
           <div style={deckBadge}>Round of {roundSize} dishes</div>
@@ -294,8 +292,8 @@ export default function SwiperGame({ limit = 16 }) {
             </button>
           </div>
           <div style={instructionRow}>
-            <span style={instructionChip}>Swipe left → skip a dish</span>
-            <span style={instructionChip}>Swipe right → keep it in play</span>
+            <span  className='md:hidden' style={instructionChip}>Swipe left → skip upper dish</span>
+            <span className='md:hidden' style={instructionChip}>Swipe right → skip lower dish</span>
             <span style={instructionChip}>Last card standing wins</span>
           </div>
         </div>
@@ -331,6 +329,7 @@ const shell = {
   width: '100%',
   padding: '60px 0',
   borderRadius: 48,
+  marginTop:40,
   background: 'radial-gradient(circle at top, rgba(255,210,175,0.55), rgba(255,248,239,0.95))',
   overflow: 'hidden',
   border: '1px solid rgba(255,255,255,0.2)',
