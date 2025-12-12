@@ -188,7 +188,7 @@ const RecipeCarousel = () => {
           Recipes based on dietary preferences
         </p>
         <h2 className='text-3xl sm:text-4xl text-[#181818] tracking-[0.3rem]'>
-          RECIPES BASED ON DIETARY PREFERENCES
+          RECIPES BASED ON bla  bla
         </h2>
         <div className='flex flex-wrap justify-center gap-3'>
           {FILTERS.map((filter) => (
