@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import * as motion from 'motion/react-client'
+import { useNavigate } from 'react-router-dom'
 import { fetchRecipeFeed } from '../../service/Data'
 
 const MotionDiv = motion.div
@@ -26,7 +27,8 @@ const shuffleCards = (items) => {
   return result
 }
 
-export default function SwiperGame({ limit = 16 }) {
+export default function SwiperGame({ limit = 10 }) {
+  const navigate = useNavigate()
   const [cards, setCards] = useState([])
   const [deck, setDeck] = useState([])
   const [winner, setWinner] = useState(null)
@@ -144,6 +146,11 @@ export default function SwiperGame({ limit = 16 }) {
     </div>
   )
 
+  const handleWinnerNavigation = useCallback(() => {
+    if (!winner?.id) return
+    navigate(`/recipes/${winner.id}`)
+  }, [navigate, winner])
+
   const renderCards = () => {
     if (cards.length === 1 && winner) {
       return (
@@ -157,10 +164,19 @@ export default function SwiperGame({ limit = 16 }) {
             top: '50%',
             x: '-50%',
             y: '-50%',
-            cursor: 'default',
+            cursor: 'pointer',
           }}
           animate={{ scale: 1.15 }}
           transition={{ duration: 0.6 }}
+          role='button'
+          tabIndex={0}
+          onClick={handleWinnerNavigation}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              handleWinnerNavigation()
+            }
+          }}
         >
           {renderCardContent(winner)}
           <div style={winnerBadge}>Chef&apos;s Choice</div>
